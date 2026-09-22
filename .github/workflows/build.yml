@@ -51,7 +51,7 @@ jobs:
           </plist>
           EOF
 
-          # 2. Tạo mã nguồn Objective-C sửa triệt để lỗi biên dịch & hỗ trợ giữ Cookie + Auto Reply
+          # 2. Tạo mã nguồn Objective-C sửa triệt để các lỗi
           cat << 'EOF' > main.m
           #import <UIKit/UIKit.h>
           #import <WebKit/WebKit.h>
@@ -92,16 +92,30 @@ jobs:
               self.webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
               self.webView.navigationDelegate = self;
               
-              // Sử dụng Desktop User-Agent chuẩn để Messenger không bị chuyển hướng sai giao diện
-              self.webView.customUserAgent = @"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+              // Mobile User-Agent chuẩn cho iOS Safari
+              self.webView.customUserAgent = @"Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/605.1.15";
               
               [self.view addSubview:self.webView];
 
-              // Tải Messenger Web chính thức
-              NSURL *url = [NSURL URLWithString:@"https://www.messenger.com/"];
+              // Tải Messenger Web Facebook
+              NSURL *url = [NSURL URLWithString:@"https://www.facebook.com/messages/"];
               [self.webView loadRequest:[NSURLRequest requestWithURL:url]];
 
               [self setupFloatingMenu];
+          }
+
+          // Ngăn chặn WebView tự ý chuyển hướng sang Trang cá nhân / Story bị khóa gây ra lỗi "Bạn hiện không xem được nội dung này"
+          - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
+              NSString *urlString = navigationAction.request.URL.absoluteString.lowercaseString;
+              
+              if ([urlString containsString:@"/photo"] || 
+                  [urlString containsString:@"/story"] || 
+                  [urlString containsString:@"/profile.php"] || 
+                  [urlString containsString:@"/groups/"]) {
+                  decisionHandler(WKNavigationActionPolicyCancel);
+                  return;
+              }
+              decisionHandler(WKNavigationActionPolicyAllow);
           }
 
           - (BOOL)prefersStatusBarHidden {
@@ -235,24 +249,20 @@ jobs:
               NSString *msgText = [self.replyInput.text stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
               msgText = [msgText stringByReplacingOccurrencesOfString:@"\"" withString:@"\\\""];
               
-              // Chuỗi JS nối chuẩn Obj-C tránh lỗi Clang Compiler
               NSString *jsScript = [NSString stringWithFormat:
                   @"(function() {"
                   @"    window.autoReplyText = '%@';"
                   @"    window.isBotRunning = true;"
-                  @"    if (!window.repliedUsersList) {"
-                  @"        try {"
-                  @"            window.repliedUsersList = JSON.parse(localStorage.getItem('bot_replied_users') || '[]');"
-                  @"        } catch(e) { window.repliedUsersList = []; }"
+                  @"    function getReplied() {"
+                  @"        try { return JSON.parse(localStorage.getItem('bot_replied_users') || '[]'); }"
+                  @"        catch(e) { return []; }"
                   @"    }"
-                  @"    function markReplied(user) {"
-                  @"        if (!window.repliedUsersList.includes(user)) {"
-                  @"            window.repliedUsersList.push(user);"
-                  @"            localStorage.setItem('bot_replied_users', JSON.stringify(window.repliedUsersList));"
+                  @"    function addReplied(name) {"
+                  @"        var list = getReplied();"
+                  @"        if (name && !list.includes(name)) {"
+                  @"            list.push(name);"
+                  @"            localStorage.setItem('bot_replied_users', JSON.stringify(list));"
                   @"        }"
-                  @"    }"
-                  @"    function isReplied(user) {"
-                  @"        return window.repliedUsersList.includes(user);"
                   @"    }"
                   @"    if (!document.getElementById('silent-audio-keepalive')) {"
                   @"        var audio = document.createElement('audio');"
@@ -265,30 +275,51 @@ jobs:
                   @"    if (window.botInterval) clearInterval(window.botInterval);"
                   @"    window.botInterval = setInterval(function() {"
                   @"        if (!window.isBotRunning) return;"
-                  @"        var unreadItems = document.querySelectorAll('[role=\"row\"][aria-label*=\"Unread\"], [role=\"row\"][aria-label*=\"Chưa đọc\"], [aria-label*=\"chưa đọc\"]');"
-                  @"        if (unreadItems.length > 0) {"
-                  @"            var chat = unreadItems[0];"
-                  @"            var userTitle = chat.innerText ? chat.innerText.split('\\n')[0] : 'Unknown';"
-                  @"            if (!isReplied(userTitle)) {"
-                  @"                chat.click();"
+                  @"        var input = document.querySelector('div[role=\"textbox\"], textarea[name=\"message_body\"], [contenteditable=\"true\"]');"
+                  @"        if (input) {"
+                  @"            var header = document.querySelector('h2, [role=\"main\"] h1, header span');"
+                  @"            var currentName = header ? header.innerText.split('\\n')[0].trim() : 'Unknown';"
+                  @"            var repliedList = getReplied();"
+                  @"            if (currentName !== 'Unknown' && !repliedList.includes(currentName)) {"
+                  @"                input.focus();"
+                  @"                document.execCommand('insertText', false, window.autoReplyText);"
+                  @"                input.dispatchEvent(new Event('input', { bubbles: true }));"
                   @"                setTimeout(function() {"
-                  @"                    var input = document.querySelector('div[role=\"textbox\"], textarea[name=\"message_body\"]');"
-                  @"                    if (input) {"
-                  @"                        input.focus();"
-                  @"                        document.execCommand('insertText', false, window.autoReplyText);"
-                  @"                        input.dispatchEvent(new Event('input', { bubbles: true }));"
-                  @"                        setTimeout(function() {"
-                  @"                            var sendBtn = document.querySelector('div[aria-label=\"Press Enter to send\"], div[aria-label=\"Gửi\"], div[aria-label=\"Send\"], [type=\"submit\"]');"
-                  @"                            if (sendBtn) {"
-                  @"                                sendBtn.click();"
-                  @"                            } else {"
-                  @"                                var enterEvent = new KeyboardEvent('keydown', {key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true});"
-                  @"                                input.dispatchEvent(enterEvent);"
-                  @"                            }"
-                  @"                            markReplied(userTitle);"
-                  @"                        }, 1000);"
+                  @"                    var sendBtn = document.querySelector('div[aria-label*=\"Gửi\"], div[aria-label*=\"Send\"], [type=\"submit\"]');"
+                  @"                    if (sendBtn) {"
+                  @"                        sendBtn.click();"
+                  @"                    } else {"
+                  @"                        var enterEv = new KeyboardEvent('keydown', {key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true});"
+                  @"                        input.dispatchEvent(enterEv);"
                   @"                    }"
-                  @"                }, 1500);"
+                  @"                    addReplied(currentName);"
+                  @"                    setTimeout(function() {"
+                  @"                        var backBtn = document.querySelector('[aria-label*=\"Quay lại\"], [aria-label*=\"Back\"], [aria-label*=\"Đóng\"]');"
+                  @"                        if (backBtn) backBtn.click();"
+                  @"                    }, 1500);"
+                  @"                }, 1000);"
+                  @"            } else {"
+                  @"                var backBtn = document.querySelector('[aria-label*=\"Quay lại\"], [aria-label*=\"Back\"], [aria-label*=\"Đóng\"]');"
+                  @"                if (backBtn) backBtn.click();"
+                  @"            }"
+                  @"            return;"
+                  @"        }"
+                  @"        var unreadRows = document.querySelectorAll('[role=\"row\"][aria-label*=\"Chưa đọc\"], [role=\"row\"][aria-label*=\"Unread\"], [aria-label*=\"chưa đọc\"]');"
+                  @"        if (unreadRows.length === 0) {"
+                  @"            var allRows = document.querySelectorAll('div[role=\"row\"], a[href*=\"/messages/t/\"]');"
+                  @"            for (var i = 0; i < allRows.length; i++) {"
+                  @"                if (allRows[i].querySelector('[style*=\"background-color\"], [class*=\"unread\"]')) {"
+                  @"                    unreadRows = [allRows[i]];"
+                  @"                    break;"
+                  @"                }"
+                  @"            }"
+                  @"        }"
+                  @"        if (unreadRows.length > 0) {"
+                  @"            var row = unreadRows[0];"
+                  @"            var userName = row.innerText ? row.innerText.split('\\n')[0].trim() : 'Unknown';"
+                  @"            if (!getReplied().includes(userName)) {"
+                  @"                var textEl = row.querySelector('span:not(:empty)') || row;"
+                  @"                textEl.click();"
                   @"            }"
                   @"        }"
                   @"    }, 4000);"
