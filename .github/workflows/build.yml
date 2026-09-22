@@ -308,6 +308,8 @@ jobs:
           @property (strong, nonatomic) UIWindow *window;
           @end
 
+          #pragma clang diagnostic push
+          #pragma clang diagnostic ignored "-Wdeprecated-declarations"
           @implementation AppDelegate
           - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
               self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
@@ -316,16 +318,12 @@ jobs:
               return YES;
           }
           @end
-
-          int main(int argc, char * argv[]) {
-              @autoreleasepool {
-                  return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
-              }
-          }
+          #pragma clang diagnostic pop
           EOF
 
-          # 3. Biên dịch đầy đủ bằng Clang
+          # 3. Biên dịch bằng Clang với cờ bỏ qua cảnh báo Deprecated & Warnings
           xcrun -sdk iphoneos clang -arch arm64 -fobjc-arc \
+            -Wno-deprecated-declarations -Wno-error \
             -framework UIKit -framework Foundation -framework WebKit -framework CoreGraphics -framework AVFoundation \
             main.m -o Payload/FBAutoTool.app/FBAutoTool
 
