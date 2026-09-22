@@ -14,7 +14,7 @@ jobs:
         run: |
           mkdir -p Payload/FBAutoTool.app
           
-          # 1. Tạo file Info.plist đăng ký quyền Chạy Ngầm Âm Thanh (Background Audio)
+          # 1. Tạo file Info.plist đăng ký quyền Chạy Ngầm Âm Thanh
           cat << 'EOF' > Payload/FBAutoTool.app/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -51,7 +51,7 @@ jobs:
           </plist>
           EOF
 
-          # 2. Tạo mã nguồn Objective-C sửa triệt để các lỗi
+          # 2. Tạo mã nguồn Objective-C (Bản sửa lỗi Desktop View, Block Redirect & JS Hoàn chỉnh)
           cat << 'EOF' > main.m
           #import <UIKit/UIKit.h>
           #import <WebKit/WebKit.h>
@@ -77,12 +77,10 @@ jobs:
               self.view.backgroundColor = [UIColor blackColor];
               self.isBotActive = NO;
 
-              // Bật Audio Session duy trì chạy ngầm ứng dụng
               NSError *error = nil;
               [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback error:&error];
               [[AVAudioSession sharedInstance] setActive:YES error:&error];
 
-              // Cấu hình Persistent Data Store lưu Cookie đăng nhập vĩnh viễn
               WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
               config.websiteDataStore = [WKWebsiteDataStore defaultDataStore];
               config.allowsInlineMediaPlayback = YES;
@@ -92,29 +90,38 @@ jobs:
               self.webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
               self.webView.navigationDelegate = self;
               
-              // Mobile User-Agent chuẩn cho iOS Safari
-              self.webView.customUserAgent = @"Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/605.1.15";
+              // QUAN TRỌNG 1: Ép dùng Desktop User-Agent để Facebook hiện ô chat
+              self.webView.customUserAgent = @"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
               
               [self.view addSubview:self.webView];
 
-              // Tải Messenger Web Facebook
-              NSURL *url = [NSURL URLWithString:@"https://www.facebook.com/messages/"];
+              // Sử dụng tên miền messenger.com chuẩn của Desktop
+              NSURL *url = [NSURL URLWithString:@"https://www.messenger.com/"];
               [self.webView loadRequest:[NSURLRequest requestWithURL:url]];
 
               [self setupFloatingMenu];
           }
 
-          // Ngăn chặn WebView tự ý chuyển hướng sang Trang cá nhân / Story bị khóa gây ra lỗi "Bạn hiện không xem được nội dung này"
+          // QUAN TRỌNG 2: Chặn văng app (Block URL Schemes)
           - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
-              NSString *urlString = navigationAction.request.URL.absoluteString.lowercaseString;
+              NSURL *url = navigationAction.request.URL;
+              NSString *scheme = url.scheme.lowercaseString;
+              NSString *absoluteURL = url.absoluteString.lowercaseString;
               
-              if ([urlString containsString:@"/photo"] || 
-                  [urlString containsString:@"/story"] || 
-                  [urlString containsString:@"/profile.php"] || 
-                  [urlString containsString:@"/groups/"]) {
+              // Chỉ cho phép tải link HTTP/HTTPS (chặn fb-messenger://, itms-apps://...)
+              if (![scheme isEqualToString:@"http"] && ![scheme isEqualToString:@"https"]) {
                   decisionHandler(WKNavigationActionPolicyCancel);
                   return;
               }
+              
+              // Chặn các link trang cá nhân, story gây lỗi "Không xem được nội dung"
+              if ([absoluteURL containsString:@"/photo"] || 
+                  [absoluteURL containsString:@"/story"] || 
+                  [absoluteURL containsString:@"/profile.php"]) {
+                  decisionHandler(WKNavigationActionPolicyCancel);
+                  return;
+              }
+              
               decisionHandler(WKNavigationActionPolicyAllow);
           }
 
@@ -186,7 +193,7 @@ jobs:
               [self.contentContainer addSubview:self.toggleBotBtn];
 
               self.statusLabel = [[UILabel alloc] initWithFrame:CGRectMake(10, 118, menuW - 20, 50)];
-              self.statusLabel.text = @"Trạng thái: Đang TẮT\nVui lòng đăng nhập Messenger trước khi BẬT.";
+              self.statusLabel.text = @"Trạng thái: Đang TẮT\nĐăng nhập giao diện MÁY TÍNH để dùng bot.";
               self.statusLabel.textColor = [UIColor systemOrangeColor];
               self.statusLabel.font = [UIFont systemFontOfSize:11];
               self.statusLabel.numberOfLines = 2;
@@ -231,7 +238,7 @@ jobs:
               if (self.isBotActive) {
                   [self.toggleBotBtn setTitle:@"⏸️ Tắt Bot Auto Reply" forState:UIControlStateNormal];
                   self.toggleBotBtn.backgroundColor = [UIColor colorWithRed:0.8 green:0.1 blue:0.2 alpha:1.0];
-                  self.statusLabel.text = @"🟢 Bot đang CHẠY NGẦM...\nTự động trả lời & không gửi trùng người cũ.";
+                  self.statusLabel.text = @"🟢 Bot đang CHẠY NGẦM...\nSẽ tự động trả lời người mới nhắn.";
                   self.statusLabel.textColor = [UIColor systemGreenColor];
                   [self injectAndStartBot];
               } else {
@@ -245,6 +252,7 @@ jobs:
               }
           }
 
+          // QUAN TRỌNG 3: Mã JavaScript gõ tin nhắn tự động đầy đủ không bị cắt
           - (void)injectAndStartBot {
               NSString *msgText = [self.replyInput.text stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
               msgText = [msgText stringByReplacingOccurrencesOfString:@"\"" withString:@"\\\""];
@@ -254,14 +262,14 @@ jobs:
                   @"    window.autoReplyText = '%@';"
                   @"    window.isBotRunning = true;"
                   @"    function getReplied() {"
-                  @"        try { return JSON.parse(localStorage.getItem('bot_replied_users') || '[]'); }"
+                  @"        try { return JSON.parse(localStorage.getItem('bot_replied_desktop') || '[]'); }"
                   @"        catch(e) { return []; }"
                   @"    }"
                   @"    function addReplied(name) {"
                   @"        var list = getReplied();"
                   @"        if (name && !list.includes(name)) {"
                   @"            list.push(name);"
-                  @"            localStorage.setItem('bot_replied_users', JSON.stringify(list));"
+                  @"            localStorage.setItem('bot_replied_desktop', JSON.stringify(list));"
                   @"        }"
                   @"    }"
                   @"    if (!document.getElementById('silent-audio-keepalive')) {"
@@ -275,17 +283,28 @@ jobs:
                   @"    if (window.botInterval) clearInterval(window.botInterval);"
                   @"    window.botInterval = setInterval(function() {"
                   @"        if (!window.isBotRunning) return;"
-                  @"        var input = document.querySelector('div[role=\"textbox\"], textarea[name=\"message_body\"], [contenteditable=\"true\"]');"
+                  @"        var unreadEls = document.querySelectorAll('[aria-label*=\"Chưa đọc\"], [aria-label*=\"Unread\"], [role=\"row\"] [style*=\"font-weight: 600\"]');"
+                  @"        for (var i = 0; i < unreadEls.length; i++) {"
+                  @"            var row = unreadEls[i].closest('[role=\"row\"]');"
+                  @"            if (row) {"
+                  @"                var nameEl = row.querySelector('span[dir=\"auto\"]');"
+                  @"                var userName = nameEl ? nameEl.innerText.trim() : 'Unknown';"
+                  @"                if (userName !== 'Unknown' && !getReplied().includes(userName)) {"
+                  @"                    row.click();"
+                  @"                    break;"
+                  @"                }"
+                  @"            }"
+                  @"        }"
+                  @"        var input = document.querySelector('div[role=\"textbox\"][contenteditable=\"true\"]');"
                   @"        if (input) {"
-                  @"            var header = document.querySelector('h2, [role=\"main\"] h1, header span');"
-                  @"            var currentName = header ? header.innerText.split('\\n')[0].trim() : 'Unknown';"
-                  @"            var repliedList = getReplied();"
-                  @"            if (currentName !== 'Unknown' && !repliedList.includes(currentName)) {"
+                  @"            var header = document.querySelector('div[role=\"main\"] span[dir=\"auto\"]');"
+                  @"            var currentName = header ? header.innerText.trim() : 'Unknown';"
+                  @"            if (currentName !== 'Unknown' && !getReplied().includes(currentName)) {"
                   @"                input.focus();"
                   @"                document.execCommand('insertText', false, window.autoReplyText);"
                   @"                input.dispatchEvent(new Event('input', { bubbles: true }));"
                   @"                setTimeout(function() {"
-                  @"                    var sendBtn = document.querySelector('div[aria-label*=\"Gửi\"], div[aria-label*=\"Send\"], [type=\"submit\"]');"
+                  @"                    var sendBtn = document.querySelector('div[aria-label=\"Press Enter to send\"], div[aria-label=\"Gửi\"], div[aria-label=\"Send\"]');"
                   @"                    if (sendBtn) {"
                   @"                        sendBtn.click();"
                   @"                    } else {"
@@ -293,33 +312,7 @@ jobs:
                   @"                        input.dispatchEvent(enterEv);"
                   @"                    }"
                   @"                    addReplied(currentName);"
-                  @"                    setTimeout(function() {"
-                  @"                        var backBtn = document.querySelector('[aria-label*=\"Quay lại\"], [aria-label*=\"Back\"], [aria-label*=\"Đóng\"]');"
-                  @"                        if (backBtn) backBtn.click();"
-                  @"                    }, 1500);"
                   @"                }, 1000);"
-                  @"            } else {"
-                  @"                var backBtn = document.querySelector('[aria-label*=\"Quay lại\"], [aria-label*=\"Back\"], [aria-label*=\"Đóng\"]');"
-                  @"                if (backBtn) backBtn.click();"
-                  @"            }"
-                  @"            return;"
-                  @"        }"
-                  @"        var unreadRows = document.querySelectorAll('[role=\"row\"][aria-label*=\"Chưa đọc\"], [role=\"row\"][aria-label*=\"Unread\"], [aria-label*=\"chưa đọc\"]');"
-                  @"        if (unreadRows.length === 0) {"
-                  @"            var allRows = document.querySelectorAll('div[role=\"row\"], a[href*=\"/messages/t/\"]');"
-                  @"            for (var i = 0; i < allRows.length; i++) {"
-                  @"                if (allRows[i].querySelector('[style*=\"background-color\"], [class*=\"unread\"]')) {"
-                  @"                    unreadRows = [allRows[i]];"
-                  @"                    break;"
-                  @"                }"
-                  @"            }"
-                  @"        }"
-                  @"        if (unreadRows.length > 0) {"
-                  @"            var row = unreadRows[0];"
-                  @"            var userName = row.innerText ? row.innerText.split('\\n')[0].trim() : 'Unknown';"
-                  @"            if (!getReplied().includes(userName)) {"
-                  @"                var textEl = row.querySelector('span:not(:empty)') || row;"
-                  @"                textEl.click();"
                   @"            }"
                   @"        }"
                   @"    }, 4000);"
