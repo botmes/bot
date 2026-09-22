@@ -14,7 +14,7 @@ jobs:
         run: |
           mkdir -p Payload/SunsetRacer.app
 
-          # 1. Tạo Info.plist chuẩn iOS Màn Hình Ngang
+          # 1. Tạo Info.plist chuẩn iOS Màn Hình Ngang & Tràn Màn Hình Full Screen
           python3 -c "
           import plistlib
           plist = {
@@ -29,6 +29,7 @@ jobs:
               'LSRequiresIPhoneOS': True,
               'UIRequiresFullScreen': True,
               'UIStatusBarHidden': True,
+              'UILaunchScreen': {},
               'UISupportedInterfaceOrientations': [
                   'UIInterfaceOrientationLandscapeRight',
                   'UIInterfaceOrientationLandscapeLeft'
@@ -42,18 +43,18 @@ jobs:
 
           printf "APPL????" > Payload/SunsetRacer.app/PkgInfo
 
-          # 2. Mã Nguồn Siêu Phẩm: Bút Thần Vẽ Trái Tim, Love Thùy, Lồng Đèn & Pháo Hoa
+          # 2. Mã Nguồn Siêu Phẩm: Bút Thần Vẽ Trái Tim To Đẹp, Tan Biến & Pháo Hoa Bắn Lên Trời
           cat << 'ENDOFCODE' > main.m
           #import <UIKit/UIKit.h>
           #import <QuartzCore/QuartzCore.h>
+          #import <math.h>
 
           @interface MasterpieceViewController : UIViewController
           @property (nonatomic, strong) CAShapeLayer *heartLayer;
           @property (nonatomic, strong) CAShapeLayer *textLayer;
           @property (nonatomic, strong) CAShapeLayer *lanternLayer;
-          @property (nonatomic, strong) CAShapeLayer *starLanternLayer;
-          @property (nonatomic, strong) UIView *magicPenView;
-          @property (nonatomic, strong) CAEmitterLayer *penTrailEmitter;
+          @property (nonatomic, strong) UIView *magicPenContainer;
+          @property (nonatomic, strong) CAEmitterLayer *penSparkleEmitter;
           @property (nonatomic, strong) CAEmitterLayer *fireworksEmitter;
           @property (nonatomic, strong) UILabel *thuyTitleLabel;
           @property (nonatomic, strong) UILabel *subTitleLabel;
@@ -88,23 +89,28 @@ jobs:
               // 1. Bầu Trời Đêm & Trăng Tròn Trung Thu phát sáng
               [self createMoonAndStarsWidth:w height:h];
 
-              // 2. Tạo Đường Vẽ 1: Trái Tim Hồng
+              // 2. Tạo Đường Vẽ 1: Trái Tim Hồng TO ĐẸP & CÂN ĐỐI (Phóng to 1.35x)
               UIBezierPath *heartPath = [UIBezierPath bezierPath];
-              CGFloat hx = w * 0.28, hy = h * 0.52;
-              [heartPath moveToPoint:CGPointMake(hx, hy - 35)];
-              [heartPath addCurveToPoint:CGPointMake(hx - 95, hy - 100) controlPoint1:CGPointMake(hx - 50, hy - 95) controlPoint2:CGPointMake(hx - 95, hy - 95)];
-              [heartPath addCurveToPoint:CGPointMake(hx, hy + 85) controlPoint1:CGPointMake(hx - 95, hy - 25) controlPoint2:CGPointMake(hx - 30, hy + 50)];
-              [heartPath addCurveToPoint:CGPointMake(hx + 95, hy - 100) controlPoint1:CGPointMake(hx + 30, hy + 50) controlPoint2:CGPointMake(hx + 95, hy - 25)];
-              [heartPath addCurveToPoint:CGPointMake(hx, hy - 35) controlPoint1:CGPointMake(hx + 95, hy - 95) controlPoint2:CGPointMake(hx + 50, hy - 95)];
+              CGFloat hx = w * 0.28, hy = h * 0.50;
+              CGFloat s = 1.35; // Scale to ra
+              [heartPath moveToPoint:CGPointMake(hx, hy - 35 * s)];
+              [heartPath addCurveToPoint:CGPointMake(hx - 95 * s, hy - 95 * s) controlPoint1:CGPointMake(hx - 50 * s, hy - 95 * s) controlPoint2:CGPointMake(hx - 95 * s, hy - 70 * s)];
+              [heartPath addCurveToPoint:CGPointMake(hx, hy + 90 * s) controlPoint1:CGPointMake(hx - 95 * s, hy + 15 * s) controlPoint2:CGPointMake(hx - 30 * s, hy + 60 * s)];
+              [heartPath addCurveToPoint:CGPointMake(hx + 95 * s, hy - 95 * s) controlPoint1:CGPointMake(hx + 30 * s, hy + 60 * s) controlPoint2:CGPointMake(hx + 95 * s, hy + 15 * s)];
+              [heartPath addCurveToPoint:CGPointMake(hx, hy - 35 * s) controlPoint1:CGPointMake(hx + 95 * s, hy - 70 * s) controlPoint2:CGPointMake(hx + 50 * s, hy - 95 * s)];
 
               self.heartLayer = [CAShapeLayer layer];
               self.heartLayer.path = heartPath.CGPath;
-              self.heartLayer.strokeColor = [UIColor colorWithRed:1.0 green:0.35 blue:0.68 alpha:1.0].CGColor;
-              self.heartLayer.fillColor = [UIColor colorWithRed:1.0 green:0.35 blue:0.68 alpha:0.18].CGColor;
-              self.heartLayer.lineWidth = 5.0;
+              self.heartLayer.strokeColor = [UIColor colorWithRed:1.0 green:0.2 blue:0.6 alpha:1.0].CGColor;
+              self.heartLayer.fillColor = [UIColor colorWithRed:1.0 green:0.2 blue:0.6 alpha:0.12].CGColor;
+              self.heartLayer.lineWidth = 6.0;
               self.heartLayer.lineCap = kCALineCapRound;
               self.heartLayer.lineJoin = kCALineJoinRound;
               self.heartLayer.strokeEnd = 0.0;
+              self.heartLayer.shadowColor = [UIColor colorWithRed:1.0 green:0.3 blue:0.7 alpha:1.0].CGColor;
+              self.heartLayer.shadowRadius = 18;
+              self.heartLayer.shadowOpacity = 1.0;
+              self.heartLayer.shadowOffset = CGSizeZero;
               [self.view.layer addSublayer:self.heartLayer];
 
               // 3. Tạo Đường Vẽ 2: Chữ "love Thùy" uốn lượn nghệ thuật
@@ -139,15 +145,18 @@ jobs:
               self.textLayer.path = textPath.CGPath;
               self.textLayer.strokeColor = [UIColor colorWithRed:1.0 green:0.85 blue:0.3 alpha:1.0].CGColor;
               self.textLayer.fillColor = [UIColor clearColor].CGColor;
-              self.textLayer.lineWidth = 4.0;
+              self.textLayer.lineWidth = 4.5;
               self.textLayer.lineCap = kCALineCapRound;
               self.textLayer.strokeEnd = 0.0;
+              self.textLayer.shadowColor = [UIColor colorWithRed:1.0 green:0.8 blue:0.2 alpha:1.0].CGColor;
+              self.textLayer.shadowRadius = 12;
+              self.textLayer.shadowOpacity = 0.9;
+              self.textLayer.shadowOffset = CGSizeZero;
               [self.view.layer addSublayer:self.textLayer];
 
-              // 4. Tạo Đường Vẽ 3: Lồng Đèn Đỏ & Lồng Đèn Ông Sao Trung Thu
+              // 4. Tạo Đường Vẽ 3: Lồng Đèn Đỏ & Lồng Đèn Ông Sao
               UIBezierPath *lanternPath = [UIBezierPath bezierPath];
               CGFloat lx = w * 0.72, ly = h * 0.48;
-              // Lồng đèn tròn truyền thống
               [lanternPath moveToPoint:CGPointMake(lx, ly - 70)];
               [lanternPath addLineToPoint:CGPointMake(lx, ly - 50)];
               [lanternPath addCurveToPoint:CGPointMake(lx + 45, ly) controlPoint1:CGPointMake(lx + 40, ly - 50) controlPoint2:CGPointMake(lx + 45, ly - 25)];
@@ -155,9 +164,8 @@ jobs:
               [lanternPath addCurveToPoint:CGPointMake(lx - 45, ly) controlPoint1:CGPointMake(lx - 40, ly + 50) controlPoint2:CGPointMake(lx - 45, ly + 25)];
               [lanternPath addCurveToPoint:CGPointMake(lx, ly - 50) controlPoint1:CGPointMake(lx - 45, ly - 25) controlPoint2:CGPointMake(lx - 40, ly - 50)];
               [lanternPath moveToPoint:CGPointMake(lx, ly + 50)];
-              [lanternPath addLineToPoint:CGPointMake(lx, ly + 80)]; // Tua rua
+              [lanternPath addLineToPoint:CGPointMake(lx, ly + 80)];
 
-              // Lồng đèn ông sao 5 cánh bên cạnh
               CGFloat sx = w * 0.86, sy = h * 0.42;
               for (int i = 0; i < 5; i++) {
                   CGFloat angle = i * 4 * M_PI / 5 - M_PI / 2;
@@ -170,26 +178,34 @@ jobs:
 
               self.lanternLayer = [CAShapeLayer layer];
               self.lanternLayer.path = lanternPath.CGPath;
-              self.lanternLayer.strokeColor = [UIColor colorWithRed:1.0 green:0.25 blue:0.3 alpha:1.0].CGColor;
-              self.lanternLayer.fillColor = [UIColor colorWithRed:1.0 green:0.2 blue:0.2 alpha:0.2].CGColor;
+              self.lanternLayer.strokeColor = [UIColor colorWithRed:1.0 green:0.3 blue:0.3 alpha:1.0].CGColor;
+              self.lanternLayer.fillColor = [UIColor colorWithRed:1.0 green:0.2 blue:0.2 alpha:0.15].CGColor;
               self.lanternLayer.lineWidth = 4.0;
               self.lanternLayer.lineCap = kCALineCapRound;
               self.lanternLayer.strokeEnd = 0.0;
+              self.lanternLayer.shadowColor = [UIColor colorWithRed:1.0 green:0.2 blue:0.2 alpha:1.0].CGColor;
+              self.lanternLayer.shadowRadius = 15;
+              self.lanternLayer.shadowOpacity = 0.9;
+              self.lanternLayer.shadowOffset = CGSizeZero;
               [self.view.layer addSublayer:self.lanternLayer];
 
-              // 5. Cây Bút Thần Magic Pen
-              self.magicPenView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 26, 26)];
-              self.magicPenView.backgroundColor = [UIColor colorWithRed:1.0 green:0.95 blue:0.4 alpha:1.0];
-              self.magicPenView.layer.cornerRadius = 13;
-              self.magicPenView.layer.borderColor = [UIColor whiteColor].CGColor;
-              self.magicPenView.layer.borderWidth = 2.5;
-              self.magicPenView.layer.shadowColor = [UIColor colorWithRed:1.0 green:0.8 blue:0.2 alpha:1.0].CGColor;
-              self.magicPenView.layer.shadowRadius = 12;
-              self.magicPenView.layer.shadowOpacity = 1.0;
-              self.magicPenView.layer.shadowOffset = CGSizeZero;
-              [self.view addSubview:self.magicPenView];
+              // 5. CÂY BÚT MỰC THẬT (Thay thế hình tròn)
+              self.magicPenContainer = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 44, 44)];
+              
+              UILabel *penLabel = [[UILabel alloc] initWithFrame:self.magicPenContainer.bounds];
+              penLabel.text = @"🖋️";
+              penLabel.font = [UIFont systemFontOfSize:36];
+              penLabel.textAlignment = NSTextAlignmentCenter;
+              penLabel.transform = CGAffineTransformMakeRotation(-M_PI_4);
+              [self.magicPenContainer addSubview:penLabel];
 
-              // Tên "THÙY" Khổng Lồ Phát Sáng (Pháo hoa nổ ra)
+              self.magicPenContainer.layer.shadowColor = [UIColor colorWithRed:1.0 green:0.9 blue:0.3 alpha:1.0].CGColor;
+              self.magicPenContainer.layer.shadowRadius = 12;
+              self.magicPenContainer.layer.shadowOpacity = 1.0;
+              self.magicPenContainer.layer.shadowOffset = CGSizeZero;
+              [self.view addSubview:self.magicPenContainer];
+
+              // Tên "THÙY" Khổng Lồ Phát Sáng
               self.thuyTitleLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, h * 0.35, w, 90)];
               self.thuyTitleLabel.text = @"THÙY";
               self.thuyTitleLabel.textColor = [UIColor colorWithRed:1.0 green:0.85 blue:0.2 alpha:1.0];
@@ -210,7 +226,7 @@ jobs:
               self.subTitleLabel.alpha = 0.0;
               [self.view addSubview:self.subTitleLabel];
 
-              // Bắt đầu chuỗi Animation Hoàn Hảo
+              // Bắt đầu chuỗi Animation Vẽ & Tan Biến Cực Đẹp
               [self startMagicPenSequenceHeartPath:heartPath textPath:textPath lanternPath:lanternPath width:w height:h];
           }
 
@@ -227,8 +243,8 @@ jobs:
               CAKeyframeAnimation *penHeart = [CAKeyframeAnimation animationWithKeyPath:@"position"];
               penHeart.path = heartPath.CGPath;
               penHeart.duration = 3.0;
-              penHeart.calculationMode = @"paced"; // Đã sửa chuẩn SDK iOS
-              [self.magicPenView.layer addAnimation:penHeart forKey:@"penMotion"];
+              penHeart.calculationMode = @"paced";
+              [self.magicPenContainer.layer addAnimation:penHeart forKey:@"penMotion"];
 
               // Phase 2: Bút viết "love Thùy" (3s)
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -243,7 +259,7 @@ jobs:
                   penText.path = textPath.CGPath;
                   penText.duration = 3.0;
                   penText.calculationMode = @"paced";
-                  [self.magicPenView.layer addAnimation:penText forKey:@"penMotion"];
+                  [self.magicPenContainer.layer addAnimation:penText forKey:@"penMotion"];
               });
 
               // Phase 3: Bút vẽ Lồng Đèn Trung Thu (3s)
@@ -259,22 +275,37 @@ jobs:
                   penLantern.path = lanternPath.CGPath;
                   penLantern.duration = 3.0;
                   penLantern.calculationMode = @"paced";
-                  [self.magicPenView.layer addAnimation:penLantern forKey:@"penMotion"];
+                  [self.magicPenContainer.layer addAnimation:penLantern forKey:@"penMotion"];
               });
 
-              // Phase 4: Bút thần biến mất -> Bắn Pháo Hoa & Hiện Tên THÙY Rực Rỡ
+              // Phase 4: TAN BIẾN CỰC ĐẸP -> BẮN PHÁO HOA LÊN TRỜI & HIỆN THÙY RỰC RỠ
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(9.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                  [UIView animateWithDuration:0.5 animations:^{
-                      self.magicPenView.alpha = 0.0;
+                  // Bút ẩn đi
+                  [UIView animateWithDuration:0.8 animations:^{
+                      self.magicPenContainer.alpha = 0.0;
                   }];
 
+                  // NÉT VẼ TAN BIẾN MỜ DẦN NGHỆ THUẬT (FADE OUT)
+                  CABasicAnimation *fadeOut = [CABasicAnimation animationWithKeyPath:@"opacity"];
+                  fadeOut.fromValue = @(1.0);
+                  fadeOut.toValue = @(0.0);
+                  fadeOut.duration = 2.0;
+                  fadeOut.removedOnCompletion = NO;
+                  fadeOut.fillMode = kCAFillModeForwards;
+
+                  [self.heartLayer addAnimation:fadeOut forKey:@"fadeOut"];
+                  [self.textLayer addAnimation:fadeOut forKey:@"fadeOut"];
+                  [self.lanternLayer addAnimation:fadeOut forKey:@"fadeOut"];
+
+                  // Bắn Pháo Hoa Thẳng Đứng Bay Lên Bầu Trời
                   [self launchGrandFireworksWidth:w height:h];
 
-                  [UIView animateWithDuration:1.5 animations:^{
+                  // Chữ THÙY & Lời Chúc Bùng Nổ
+                  [UIView animateWithDuration:1.5 delay:0.5 options:UIViewAnimationOptionCurveEaseOut animations:^{
                       self.thuyTitleLabel.alpha = 1.0;
-                      self.thuyTitleLabel.transform = CGAffineTransformMakeScale(1.1, 1.1);
+                      self.thuyTitleLabel.transform = CGAffineTransformMakeScale(1.15, 1.15);
                       self.subTitleLabel.alpha = 1.0;
-                  }];
+                  } completion:nil];
               });
           }
 
@@ -290,28 +321,32 @@ jobs:
               [self.view addSubview:moon];
           }
 
+          // FIX HƯỚNG BẮN PHÁO HOA: BẮN THẲNG ĐỨNG TỪ DƯỚI LÊN TRỜI
           - (void)launchGrandFireworksWidth:(CGFloat)w height:(CGFloat)h {
               self.fireworksEmitter = [CAEmitterLayer layer];
-              self.fireworksEmitter.emitterPosition = CGPointMake(w / 2, h + 10);
-              self.fireworksEmitter.emitterSize = CGSizeMake(w, 10);
+              self.fireworksEmitter.emitterPosition = CGPointMake(w / 2, h + 20);
+              self.fireworksEmitter.emitterSize = CGSizeMake(w * 0.8, 10);
 
               CAEmitterCell *rocket = [CAEmitterCell emitterCell];
-              rocket.birthRate = 3.0;
-              rocket.lifetime = 1.6;
-              rocket.velocity = 420;
-              rocket.velocityRange = 120;
-              rocket.yAcceleration = 130;
-              rocket.emissionRange = M_PI / 3;
+              rocket.birthRate = 2.5;
+              rocket.lifetime = 1.8;
+              rocket.velocity = 520; // Vận tốc mạnh để phóng lên cao
+              rocket.velocityRange = 100;
+              rocket.yAcceleration = 120; // Trọng lực kéo pháo hoa chậm lại ở đỉnh
+              rocket.emissionLongitude = -M_PI_2; // CHUẨN: -PI/2 là hướng BẮN THẲNG ĐỨNG LÊN TRỜI
+              rocket.emissionRange = M_PI / 4; // Góc xòe hình nón hướng lên
               rocket.scale = 0.12;
 
+              // Các hạt pháo hoa nổ bung tỏa ra 360 độ cực đẹp
               CAEmitterCell *sparkle = [CAEmitterCell emitterCell];
-              sparkle.birthRate = 1500;
-              sparkle.lifetime = 2.5;
-              sparkle.velocity = 180;
-              sparkle.scale = 0.09;
+              sparkle.birthRate = 1200;
+              sparkle.lifetime = 2.2;
+              sparkle.velocity = 200;
+              sparkle.velocityRange = 80;
+              sparkle.scale = 0.08;
               sparkle.scaleSpeed = -0.02;
-              sparkle.alphaSpeed = -0.35;
-              sparkle.spin = 3.5;
+              sparkle.alphaSpeed = -0.4;
+              sparkle.spin = 4.0;
 
               UIGraphicsBeginImageContext(CGSizeMake(12, 12));
               CGContextRef ctx = UIGraphicsGetCurrentContext();
