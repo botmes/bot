@@ -51,14 +51,18 @@ jobs:
               <key>CADisableMinimumFrameDurationOnPhone</key>
               <true/>
           </dict>
-          </plist>
           EOF
 
-          # 2. Tạo Mã Nguồn Trò Chơi 3D Hoàng Hôn (SceneKit Native Objective-C)
+          # 2. Tạo Mã Nguồn Trò Chơi 3D Hoàng Hôn (Sửa lỗi ép kiểu float/UINT32_MAX)
           cat << 'EOF' > main.m
           #import <UIKit/UIKit.h>
           #import <SceneKit/SceneKit.h>
           #import <QuartzCore/QuartzCore.h>
+          #import <stdlib.h>
+          #import <stdint.h>
+          #import <math.h>
+
+          #define RANDOM_FLOAT() ((float)(arc4random() % 10000) / 10000.0f)
 
           @interface GameViewController : UIViewController <SCNSceneRendererDelegate>
           @property (nonatomic, strong) SCNView *scnView;
@@ -84,10 +88,10 @@ jobs:
               [super viewDidLoad];
               self.view.backgroundColor = [UIColor blackColor];
               self.score = 0;
-              self.currentSpeed = 1.2;
+              self.currentSpeed = 1.2f;
               self.rings = [NSMutableArray array];
 
-              // 1. Cấu hình SCNView cho iPhone 16 Pro (120Hz ProMotion & Anti-Aliasing)
+              // 1. Cấu hình SCNView cho iPhone 16 Pro (120Hz ProMotion)
               self.scnView = [[SCNView alloc] initWithFrame:self.view.bounds];
               self.scnView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
               self.scnView.rendersContinuously = YES;
@@ -96,7 +100,7 @@ jobs:
               self.scnView.delegate = self;
               [self.view addSubview:self.scnView];
 
-              // 2. Tạo Scene & Không gian bầu trời Hoàng Hôn (Sunset Skybox)
+              // 2. Tạo Scene & Hoàng Hôn (Sunset Skybox)
               self.scene = [SCNScene scene];
               self.scnView.scene = self.scene;
 
@@ -106,23 +110,21 @@ jobs:
               [self setupCameraAndLighting];
               [self setupFuturisticUI];
 
-              // Thêm thao tác vuốt tay điều khiển
               UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
               [self.scnView addGestureRecognizer:pan];
           }
 
           - (void)setupSunsetEnvironment {
-              // Vẽ Gradient bầu trời hoàng hôn cực nét
               UIGraphicsBeginImageContextWithOptions(CGSizeMake(512, 1024), YES, 0);
               CGContextRef ctx = UIGraphicsGetCurrentContext();
               CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
               CGFloat locations[] = {0.0, 0.4, 0.65, 0.85, 1.0};
               NSArray *colors = @[
-                  (__bridge id)[UIColor colorWithRed:0.05 green:0.02 blue:0.15 alpha:1.0].CGColor, // Đêm tím ngắt
-                  (__bridge id)[UIColor colorWithRed:0.55 green:0.12 blue:0.38 alpha:1.0].CGColor, // Tím hồng dải mây
-                  (__bridge id)[UIColor colorWithRed:0.95 green:0.35 blue:0.12 alpha:1.0].CGColor, // Cam hoàng hôn rực rỡ
-                  (__bridge id)[UIColor colorWithRed:1.00 green:0.70 blue:0.20 alpha:1.0].CGColor, // Vàng kim chân trời
-                  (__bridge id)[UIColor colorWithRed:0.08 green:0.08 blue:0.20 alpha:1.0].CGColor  // Mặt biển phản chiếu
+                  (__bridge id)[UIColor colorWithRed:0.05 green:0.02 blue:0.15 alpha:1.0].CGColor,
+                  (__bridge id)[UIColor colorWithRed:0.55 green:0.12 blue:0.38 alpha:1.0].CGColor,
+                  (__bridge id)[UIColor colorWithRed:0.95 green:0.35 blue:0.12 alpha:1.0].CGColor,
+                  (__bridge id)[UIColor colorWithRed:1.00 green:0.70 blue:0.20 alpha:1.0].CGColor,
+                  (__bridge id)[UIColor colorWithRed:0.08 green:0.08 blue:0.20 alpha:1.0].CGColor
               ];
               CGGradientRef gradient = CGGradientCreateWithColors(colorSpace, (__bridge CFArrayRef)colors, locations);
               CGContextDrawLinearGradient(ctx, gradient, CGPointMake(0, 0), CGPointMake(0, 1024), 0);
@@ -133,12 +135,10 @@ jobs:
 
               self.scene.background.contents = sunsetImage;
 
-              // Sương mù hoàng hôn huyền ảo
               self.scene.fogColor = [UIColor colorWithRed:0.90 green:0.40 blue:0.20 alpha:1.0];
-              self.scene.fogStartDistance = 120.0;
-              self.scene.fogEndDistance = 450.0;
+              self.scene.fogStartDistance = 120.0f;
+              self.scene.fogEndDistance = 450.0f;
 
-              // Mặt nước biển vô tận có tính chất phản chiếu ánh sáng (Metallic Ocean)
               SCNPlane *waterGeo = [SCNPlane planeWithWidth:1200 height:2000];
               waterGeo.firstMaterial.diffuse.contents = [UIColor colorWithRed:0.03 green:0.05 blue:0.12 alpha:1.0];
               waterGeo.firstMaterial.specular.contents = [UIColor colorWithRed:1.0 green:0.6 blue:0.2 alpha:1.0];
@@ -152,14 +152,12 @@ jobs:
           }
 
           - (void)setupCameraAndLighting {
-              // Camera theo sau phi thuyền
               SCNNode *cameraNode = [SCNNode node];
               cameraNode.camera = [SCNCamera camera];
               cameraNode.camera.zFar = 600;
               cameraNode.position = SCNVector3Make(0, 4, 12);
               [self.scene.rootNode addChildNode:cameraNode];
 
-              // Ánh sáng Mặt Trời Hoàng Hôn (Directional Sunset Light)
               SCNNode *sunLight = [SCNNode node];
               sunLight.light = [SCNLight light];
               sunLight.light.type = SCNLightTypeDirectional;
@@ -169,14 +167,12 @@ jobs:
               sunLight.eulerAngles = SCNVector3Make(-M_PI / 14, M_PI, 0);
               [self.scene.rootNode addChildNode:sunLight];
 
-              // Quả cầu Mặt Trời cực lớn ở chân trời
               SCNNode *sunMesh = [SCNNode nodeWithGeometry:[SCNSphere sphereWithRadius:25.0]];
               sunMesh.geometry.firstMaterial.diffuse.contents = [UIColor colorWithRed:1.0 green:0.85 blue:0.3 alpha:1.0];
               sunMesh.geometry.firstMaterial.emission.contents = [UIColor colorWithRed:1.0 green:0.45 blue:0.1 alpha:1.0];
               sunMesh.position = SCNVector3Make(0, 12, -400);
               [self.scene.rootNode addChildNode:sunMesh];
 
-              // Ánh sáng môi trường mềm
               SCNNode *ambientLight = [SCNNode node];
               ambientLight.light = [SCNLight light];
               ambientLight.light.type = SCNLightTypeAmbient;
@@ -188,7 +184,6 @@ jobs:
           - (void)setup3DPlayerShip {
               self.shipNode = [SCNNode node];
 
-              // Thân phi thuyền (Futuristic Jet Body)
               SCNCone *bodyGeo = [SCNCone coneWithTopRadius:0.0 bottomRadius:1.1 height:5.5];
               bodyGeo.firstMaterial.diffuse.contents = [UIColor colorWithRed:0.1 green:0.1 blue:0.12 alpha:1.0];
               bodyGeo.firstMaterial.metalness.contents = @0.95;
@@ -197,7 +192,6 @@ jobs:
               body.eulerAngles = SCNVector3Make(M_PI_2, 0, 0);
               [self.shipNode addChildNode:body];
 
-              // Cánh phi thuyền kiểu tiêm kích
               SCNBox *wingGeo = [SCNBox boxWithWidth:7.5 height:0.08 length:2.2 chamferRadius:0.04];
               wingGeo.firstMaterial.diffuse.contents = [UIColor colorWithRed:0.9 green:0.15 blue:0.15 alpha:1.0];
               wingGeo.firstMaterial.metalness.contents = @0.8;
@@ -205,7 +199,6 @@ jobs:
               wing.position = SCNVector3Make(0, 0, 0.6);
               [self.shipNode addChildNode:wing];
 
-              // Buồng lái kính phản quang xanh neon (Neon Cockpit)
               SCNSphere *glassGeo = [SCNSphere sphereWithRadius:0.65];
               glassGeo.firstMaterial.diffuse.contents = [UIColor colorWithRed:0.0 green:0.8 blue:1.0 alpha:0.8];
               glassGeo.firstMaterial.emission.contents = [UIColor colorWithRed:0.0 green:0.6 blue:0.9 alpha:1.0];
@@ -214,7 +207,6 @@ jobs:
               glass.position = SCNVector3Make(0, 0.45, -0.4);
               [self.shipNode addChildNode:glass];
 
-              // Động cơ Lửa phản lực phía sau
               SCNCylinder *engineGeo = [SCNCylinder cylinderWithRadius:0.45 height:0.2];
               engineGeo.firstMaterial.emission.contents = [UIColor colorWithRed:1.0 green:0.5 blue:0.0 alpha:1.0];
               SCNNode *engine = [SCNNode nodeWithGeometry:engineGeo];
@@ -229,9 +221,9 @@ jobs:
           - (void)setupCollectableRings {
               for (int i = 0; i < 7; i++) {
                   SCNNode *ring = [self createNeonRing];
-                  float randomX = ((float)arc4random() / UINT32_MAX) * 24.0 - 12.0;
-                  float randomY = ((float)arc4random() / UINT32_MAX) * 12.0 - 4.0;
-                  ring.position = SCNVector3Make(randomX, randomY, -60.0 - (i * 45.0));
+                  float randomX = RANDOM_FLOAT() * 24.0f - 12.0f;
+                  float randomY = RANDOM_FLOAT() * 12.0f - 4.0f;
+                  ring.position = SCNVector3Make(randomX, randomY, -60.0f - (i * 45.0f));
                   [self.scene.rootNode addChildNode:ring];
                   [self.rings addObject:ring];
               }
@@ -243,7 +235,6 @@ jobs:
               torus.firstMaterial.emission.contents = [UIColor colorWithRed:1.0 green:0.4 blue:0.0 alpha:1.0];
               SCNNode *ringNode = [SCNNode nodeWithGeometry:torus];
               
-              // Xoay vòng tròn liên tục
               CABasicAnimation *spin = [CABasicAnimation animationWithKeyPath:@"rotation"];
               spin.toValue = [NSValue valueWithSCNVector4:SCNVector4Make(0, 0, 1, M_PI * 2)];
               spin.duration = 3.0;
@@ -253,7 +244,6 @@ jobs:
           }
 
           - (void)setupFuturisticUI {
-              // Bảng điểm Neon góc trên bên trái
               self.scoreLabel = [[UILabel alloc] initWithFrame:CGRectMake(50, 20, 300, 40)];
               self.scoreLabel.text = @"SCORE: 0000";
               self.scoreLabel.textColor = [UIColor colorWithRed:0.0 green:1.0 blue:0.8 alpha:1.0];
@@ -264,7 +254,6 @@ jobs:
               self.scoreLabel.layer.shadowOpacity = 1.0;
               [self.view addSubview:self.scoreLabel];
 
-              // Tốc độ góc trên bên phải
               self.speedLabel = [[UILabel alloc] initWithFrame:CGRectMake(self.view.bounds.size.width - 250, 20, 200, 40)];
               self.speedLabel.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
               self.speedLabel.textAlignment = NSTextAlignmentRight;
@@ -274,21 +263,17 @@ jobs:
               [self.view addSubview:self.speedLabel];
           }
 
-          // Cảm ứng điều khiển nghiêng & di chuyển phi thuyền
           - (void)handlePan:(UIPanGestureRecognizer *)pan {
               CGPoint translation = [pan translationInView:self.scnView];
               if (pan.state == UIGestureRecognizerStateChanged) {
-                  float newX = self.shipNode.position.x + (translation.x * 0.035);
-                  float newY = self.shipNode.position.y - (translation.y * 0.035);
+                  float newX = self.shipNode.position.x + (translation.x * 0.035f);
+                  float newY = self.shipNode.position.y - (translation.y * 0.035f);
 
-                  // Giới hạn phạm vi bay
-                  newX = MAX(-16.0, MIN(16.0, newX));
-                  newY = MAX(-6.0, MIN(14.0, newY));
+                  newX = MAX(-16.0f, MIN(16.0f, newX));
+                  newY = MAX(-6.0f, MIN(14.0f, newY));
 
                   self.shipNode.position = SCNVector3Make(newX, newY, self.shipNode.position.z);
-
-                  // Hiệu ứng nghiêng phi thuyền (Banking Animation)
-                  self.shipNode.eulerAngles = SCNVector3Make(translation.y * -0.01, 0, translation.x * -0.02);
+                  self.shipNode.eulerAngles = SCNVector3Make(translation.y * -0.01f, 0, translation.x * -0.02f);
                   [pan setTranslation:CGPointZero inView:self.scnView];
               } else if (pan.state == UIGestureRecognizerStateEnded) {
                   [UIView animateWithDuration:0.4 animations:^{
@@ -297,40 +282,33 @@ jobs:
               }
           }
 
-          // Vòng lặp cập nhật Game 120 FPS
           - (void)renderer:(id<SCNSceneRenderer>)renderer updateAtTime:(NSTimeInterval)time {
-              // Di chuyển các vòng tròn về phía phi thuyền
               for (SCNNode *ring in self.rings) {
                   SCNVector3 pos = ring.position;
                   pos.z += self.currentSpeed;
 
-                  // Kiểm tra va chạm (Thu thập vòng điểm)
                   float dx = pos.x - self.shipNode.position.x;
                   float dy = pos.y - self.shipNode.position.y;
-                  float dist = sqrt(dx*dx + dy*dy);
+                  float dist = sqrtf(dx*dx + dy*dy);
 
-                  if (pos.z > -2.0 && pos.z < 2.0 && dist < 3.5) {
-                      // Thu thập thành công!
+                  if (pos.z > -2.0f && pos.z < 2.0f && dist < 3.5f) {
                       self.score += 100;
                       dispatch_async(dispatch_get_main_queue(), ^{
                           self.scoreLabel.text = [NSString stringWithFormat:@"SCORE: %04ld", (long)self.score];
                       });
 
-                      // Reset vòng ra phía xa
-                      pos.z = -300.0;
-                      pos.x = ((float)arc4random() / UINT32_MAX) * 28.0 - 14.0;
-                      pos.y = ((float)arc4random() / UINT32_MAX) * 12.0 - 4.0;
-                  } else if (pos.z > 15.0) {
-                      // Trôi quá màn hình -> Đặt lại ra xa
-                      pos.z = -300.0;
-                      pos.x = ((float)arc4random() / UINT32_MAX) * 28.0 - 14.0;
-                      pos.y = ((float)arc4random() / UINT32_MAX) * 12.0 - 4.0;
+                      pos.z = -300.0f;
+                      pos.x = RANDOM_FLOAT() * 28.0f - 14.0f;
+                      pos.y = RANDOM_FLOAT() * 12.0f - 4.0f;
+                  } else if (pos.z > 15.0f) {
+                      pos.z = -300.0f;
+                      pos.x = RANDOM_FLOAT() * 28.0f - 14.0f;
+                      pos.y = RANDOM_FLOAT() * 12.0f - 4.0f;
                   }
                   ring.position = pos;
               }
 
-              // Tang tốc độ dần theo thời gian
-              self.currentSpeed += 0.0001;
+              self.currentSpeed += 0.0001f;
           }
 
           @end
@@ -355,9 +333,8 @@ jobs:
           }
           EOF
 
-          # 3. Biên dịch game bằng Clang với đầy đủ 3D Frameworks
-          xcrun -sdk iphoneos clang -arch arm64 -fobjc-arc \
-            -Wno-deprecated-declarations -Wno-error \
+          # 3. Biên dịch game bằng Clang (Thêm -w ẩn warning)
+          xcrun -sdk iphoneos clang -arch arm64 -fobjc-arc -w \
             -framework UIKit -framework Foundation -framework SceneKit -framework QuartzCore -framework CoreGraphics -framework AVFoundation \
             main.m -o Payload/SunsetRacer.app/SunsetRacer
 
