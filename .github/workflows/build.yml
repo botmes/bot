@@ -14,7 +14,7 @@ jobs:
         run: |
           mkdir -p Payload/FBAutoTool.app
           
-          # 1. Tạo file Info.plist có bật quyền Chạy Ngầm Âm Thanh (Background Audio)
+          # 1. Tạo file Info.plist đăng ký quyền Chạy Ngầm Âm Thanh (Background Audio)
           cat << 'EOF' > Payload/FBAutoTool.app/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -51,7 +51,7 @@ jobs:
           </plist>
           EOF
 
-          # 2. Tạo mã nguồn Objective-C tích hợp WebView + Floating Menu + Engine tự động
+          # 2. Tạo mã nguồn Objective-C tích hợp WebView + Menu nhập liệu + Engine tự động
           cat << 'EOF' > main.m
           #import <UIKit/UIKit.h>
           #import <WebKit/WebKit.h>
@@ -317,9 +317,16 @@ jobs:
           }
           @end
           #pragma clang diagnostic pop
+
+          // Hàm Main bắt buộc của ứng dụng iOS
+          int main(int argc, char * argv[]) {
+              @autoreleasepool {
+                  return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
+              }
+          }
           EOF
 
-          # 3. Biên dịch bằng Clang
+          # 3. Biên dịch đầy đủ bằng Clang
           xcrun -sdk iphoneos clang -arch arm64 -fobjc-arc \
             -Wno-deprecated-declarations -Wno-error \
             -framework UIKit -framework Foundation -framework WebKit -framework CoreGraphics -framework AVFoundation \
