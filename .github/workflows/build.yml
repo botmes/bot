@@ -10,26 +10,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Azule Injection Tool
+      - name: Install Azule via Curl
         run: |
-          git clone https://github.com/Al45tair/Azule.git
-          sudo ln -sf $(pwd)/Azule/azule /usr/local/bin/azule
+          sudo curl -sL "https://raw.githubusercontent.com/Al45tair/Azule/main/azule" -o /usr/local/bin/azule
+          sudo chmod +x /usr/local/bin/azule
 
-      - name: Compile Mod Menu Dylib (AdBlock & Auto-Reward)
+      - name: Compile Mod Menu Dylib
         run: |
           cat << 'EOF' > ModLangSoi.m
           #import <UIKit/UIKit.h>
           #import <objc/runtime.h>
 
-          // ----------------------------------------------------
-          // 1. BIẾN TRẠNG THÁI CÔNG TẮC
-          // ----------------------------------------------------
           static BOOL g_BlockInterstitials = YES;
           static BOOL g_AutoClaimRewards = YES;
 
-          // ----------------------------------------------------
-          // 2. GIAO DIỆN MOD MENU RỜI (FLOATING MENU UI)
-          // ----------------------------------------------------
           @interface ModMenuView : UIView
           @property (nonatomic, strong) UIButton *toggleBtn;
           @property (nonatomic, strong) UIView *panelView;
@@ -44,7 +38,6 @@ jobs:
               if (self) {
                   self.isExpanded = NO;
 
-                  // Icon Nút Tròn Nổi
                   self.toggleBtn = [UIButton buttonWithType:UIButtonTypeCustom];
                   self.toggleBtn.frame = CGRectMake(0, 0, 50, 50);
                   self.toggleBtn.layer.cornerRadius = 25;
@@ -59,7 +52,6 @@ jobs:
                   [self.toggleBtn addGestureRecognizer:pan];
                   [self addSubview:self.toggleBtn];
 
-                  // Khung Menu Tùy Chọn
                   self.panelView = [[UIView alloc] initWithFrame:CGRectMake(0, 55, 220, 130)];
                   self.panelView.backgroundColor = [UIColor colorWithRed:0.08 green:0.08 blue:0.12 alpha:0.95];
                   self.panelView.layer.cornerRadius = 12;
@@ -119,15 +111,11 @@ jobs:
 
           @end
 
-          // ----------------------------------------------------
-          // 3. CAN THIỆP CHẶN VÀ NHẬN THƯỞNG QUẢNG CÁO (HOOKS)
-          // ----------------------------------------------------
           static void (*orig_presentViewController)(id, SEL, UIViewController *, BOOL, void (^)(void));
 
           void hk_presentViewController(UIViewController *self, SEL _cmd, UIViewController *vcToPresent, BOOL animated, void (^completion)(void)) {
               NSString *className = NSStringFromClass([vcToPresent class]);
 
-              // Nhận diện các ViewController thuộc SDK Quảng cáo (UnityAds, AdMob, AppLovin, Vungle)
               BOOL isAdVC = [className containsString:@"Ad"] || 
                             [className containsString:@"Unity"] || 
                             [className containsString:@"GAD"] || 
@@ -135,9 +123,7 @@ jobs:
                             [className containsString:@"Vungle"];
 
               if (isAdVC) {
-                  // Chặn bật màn hình xem video quảng cáo
                   if (g_BlockInterstitials || g_AutoClaimRewards) {
-                      // Kích hoạt ngay completion callback để game tưởng rằng quảng cáo đã xem xong
                       if (completion) completion();
                       return;
                   }
@@ -159,31 +145,26 @@ jobs:
 
           __attribute__((constructor))
           static void init_mod() {
-              // Hook tiến trình bật giao diện xem quảng cáo
               Method m1 = class_getInstanceMethod([UIViewController class], @selector(presentViewController:animated:completion:));
               orig_presentViewController = (void *)method_getImplementation(m1);
               method_setImplementation(m1, (IMP)hk_presentViewController);
 
-              // Inject Mod Menu vào cửa sổ chính của game
               Method m2 = class_getInstanceMethod([UIWindow class], @selector(makeKeyAndVisible));
               orig_makeKeyAndVisible = (void *)method_getImplementation(m2);
               method_setImplementation(m2, (IMP)hk_makeKeyAndVisible);
           }
           EOF
 
-          # Biên dịch mã nguồn Objective-C thành thư viện động (.dylib) cho chip ARM64 iOS
           xcrun -sdk iphoneos clang -dynamiclib -arch arm64 -fobjc-arc -framework UIKit -framework Foundation ModLangSoi.m -o ModLangSoi.dylib
 
       - name: Inject Dylib into IPA using Azule
         run: |
-          # Kiểm tra file LangSoi.ipa gốc trong Repository
           if [ ! -f "LangSoi.ipa" ]; then
-            echo "Lỗi: Không tìm thấy tệp LangSoi.ipa gốc trong Repository!"
-            echo "Vui lòng tải tệp LangSoi.ipa lên thư mục gốc của repo trước khi chạy Workflow."
+            echo "LỖI: Chưa tìm thấy file LangSoi.ipa ở thư mục gốc repo!"
+            echo "Vui lòng upload file file LangSoi.ipa gốc lên trước khi chạy."
             exit 1
           fi
 
-          # Dùng Azule để tiêm ModLangSoi.dylib vào IPA
           azule -i LangSoi.ipa -o LangSoi_Modded.ipa -f ModLangSoi.dylib
 
       - name: Upload Modded IPA Artifact
