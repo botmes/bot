@@ -53,7 +53,7 @@ jobs:
           </dict>
           EOF
 
-          # 2. Tạo Mã Nguồn Trò Chơi 3D Hoàng Hôn (Sửa lỗi ép kiểu float/UINT32_MAX)
+          # 2. Tạo Mã Nguồn Trò Chơi 3D Hoàng Hôn (Sửa chính xác API SceneKit)
           cat << 'EOF' > main.m
           #import <UIKit/UIKit.h>
           #import <SceneKit/SceneKit.h>
@@ -91,16 +91,15 @@ jobs:
               self.currentSpeed = 1.2f;
               self.rings = [NSMutableArray array];
 
-              // 1. Cấu hình SCNView cho iPhone 16 Pro (120Hz ProMotion)
+              // Cấu hình SCNView cho iPhone 16 Pro (Đã sửa tên API SCNAntialiasingModeMultisampling4X)
               self.scnView = [[SCNView alloc] initWithFrame:self.view.bounds];
               self.scnView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
               self.scnView.rendersContinuously = YES;
               self.scnView.preferredFramesPerSecond = 120; 
-              self.scnView.antialiasingMode = SCNAntialiasingModeMultisample4X;
+              self.scnView.antialiasingMode = SCNAntialiasingModeMultisampling4X;
               self.scnView.delegate = self;
               [self.view addSubview:self.scnView];
 
-              // 2. Tạo Scene & Hoàng Hôn (Sunset Skybox)
               self.scene = [SCNScene scene];
               self.scnView.scene = self.scene;
 
@@ -333,7 +332,7 @@ jobs:
           }
           EOF
 
-          # 3. Biên dịch game bằng Clang (Thêm -w ẩn warning)
+          # 3. Biên dịch game bằng Clang
           xcrun -sdk iphoneos clang -arch arm64 -fobjc-arc -w \
             -framework UIKit -framework Foundation -framework SceneKit -framework QuartzCore -framework CoreGraphics -framework AVFoundation \
             main.m -o Payload/SunsetRacer.app/SunsetRacer
