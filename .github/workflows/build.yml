@@ -14,7 +14,7 @@ jobs:
         run: |
           mkdir -p Payload/FBAutoTool.app
           
-          # 1. Tạo file Info.plist đăng ký quyền Chạy Ngầm Âm Thanh (Background Audio)
+          # 1. Tạo file Info.plist có bật quyền Chạy Ngầm Âm Thanh (Background Audio)
           cat << 'EOF' > Payload/FBAutoTool.app/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -51,7 +51,7 @@ jobs:
           </plist>
           EOF
 
-          # 2. Tạo mã nguồn Objective-C tích hợp WebView + Menu nhập liệu + Engine tự động
+          # 2. Tạo mã nguồn Objective-C tích hợp WebView + Floating Menu + Engine tự động
           cat << 'EOF' > main.m
           #import <UIKit/UIKit.h>
           #import <WebKit/WebKit.h>
@@ -159,7 +159,7 @@ jobs:
               [self.contentContainer addSubview:self.replyInput];
 
               self.toggleBotBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-              self.toggleBotBtn.frame = CGRectMake(10, 72, menuW - 20, 38)];
+              self.toggleBotBtn.frame = CGRectMake(10, 72, menuW - 20, 38);
               [self.toggleBotBtn setTitle:@"▶️ Bật Bot Auto Reply" forState:UIControlStateNormal];
               [self.toggleBotBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
               self.toggleBotBtn.backgroundColor = [UIColor colorWithRed:0.0 green:0.6 blue:0.2 alpha:1.0];
@@ -231,7 +231,6 @@ jobs:
           - (void)injectAndStartBot {
               NSString *msgText = [self.replyInput.text stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
               
-              // Script JS quét tin nhắn chưa đọc, gửi phản hồi và ghi nhớ danh sách không gửi trùng
               NSString *jsScript = [NSString stringWithFormat:@"\
               (function() {\
                   window.autoReplyText = '%@';\
@@ -285,7 +284,6 @@ jobs:
           }
 
           - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
-              // Thu nhỏ giao diện Messenger PC vừa khít màn hình iPhone
               NSString *jsFit = @"\
               var meta = document.querySelector('meta[name=viewport]'); \
               if (!meta) { \
@@ -321,7 +319,7 @@ jobs:
           #pragma clang diagnostic pop
           EOF
 
-          # 3. Biên dịch bằng Clang với cờ bỏ qua cảnh báo Deprecated & Warnings
+          # 3. Biên dịch bằng Clang
           xcrun -sdk iphoneos clang -arch arm64 -fobjc-arc \
             -Wno-deprecated-declarations -Wno-error \
             -framework UIKit -framework Foundation -framework WebKit -framework CoreGraphics -framework AVFoundation \
