@@ -29,9 +29,9 @@ jobs:
               <key>CFBundleExecutable</key>
               <string>TikTokTool</string>
               <key>CFBundleShortVersionString</key>
-              <string>1.0</string>
+              <string>1.2</string>
               <key>CFBundleVersion</key>
-              <string>1</string>
+              <string>3</string>
               <key>LSRequiresIPhoneOS</key>
               <true/>
               <key>NSAppTransportSecurity</key>
@@ -47,7 +47,7 @@ jobs:
           </plist>
           EOF
 
-          # 2. Tạo mã nguồn Objective-C tích hợp Floating Menu & Sync Live Buffer
+          # 2. Mã nguồn Objective-C ép Fullscreen 100% + Inject CSS phóng to TikTok
           cat << 'EOF' > main.m
           #import <UIKit/UIKit.h>
           #import <WebKit/WebKit.h>
@@ -55,8 +55,11 @@ jobs:
           @interface MainViewController : UIViewController <WKNavigationDelegate>
           @property (nonatomic, strong) WKWebView *webView;
           @property (nonatomic, strong) UIView *floatingMenu;
+          @property (nonatomic, strong) UIView *contentContainer;
+          @property (nonatomic, strong) UIButton *toggleBtn;
           @property (nonatomic, strong) UILabel *statusLabel;
           @property (nonatomic, assign) CGPoint initialCenter;
+          @property (nonatomic, assign) BOOL isMinimized;
           @end
 
           @implementation MainViewController
@@ -65,27 +68,62 @@ jobs:
               [super viewDidLoad];
               self.view.backgroundColor = [UIColor blackColor];
 
+              // Cấu hình Inject JS/CSS để ép TikTok tràn 100% màn hình
+              NSString *cssFix = @"* { max-width: none !important; } "
+                                  "html, body, #app, main, div[class*='layout'], div[class*='container'] { "
+                                  "  width: 100vw !important; height: 100vh !important; margin: 0 !important; padding: 0 !important; "
+                                  "} "
+                                  "video { object-fit: cover !important; width: 100% !important; height: 100% !important; }";
+              
+              NSString *jsInject = [NSString stringWithFormat:
+                  @"var style = document.createElement('style');"
+                   "style.innerHTML = '%@';"
+                   "document.head.appendChild(style);", cssFix];
+
+              WKUserScript *script = [[WKUserScript alloc] initWithSource:jsInject 
+                                                             injectionTime:WKUserScriptInjectionTimeAtDocumentEnd 
+                                                          forMainFrameOnly:NO];
+
               WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
               config.allowsInlineMediaPlayback = YES;
               config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
+              [config.userContentController addUserScript:script];
 
-              self.webView = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:config];
+              // Khởi tạo WKWebView
+              self.webView = [[WKWebView alloc] initWithFrame:CGRectZero configuration:config];
               self.webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
               self.webView.navigationDelegate = self;
+              self.webView.scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
+              self.webView.customUserAgent = @"Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1";
               
+              [self.view addSubview:self.webView];
+
+              // Dùng AutoLayout ép tràn viền tuyệt đối
+              self.webView.translatesAutoresizingMaskIntoConstraints = NO;
+              [NSLayoutConstraint activateConstraints:@[
+                  [self.webView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+                  [self.webView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+                  [self.webView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+                  [self.webView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor]
+              ]];
+
               NSURL *url = [NSURL URLWithString:@"https://www.tiktok.com/live"];
               [self.webView loadRequest:[NSURLRequest requestWithURL:url]];
-              [self.view addSubview:self.webView];
 
               [self setupFloatingMenu];
           }
 
+          - (BOOL)prefersStatusBarHidden {
+              return YES; // Ẩn thanh trạng thái để tối đa hóa không gian nhìn
+          }
+
           - (void)setupFloatingMenu {
-              CGFloat menuW = 270;
-              CGFloat menuH = 210;
+              CGFloat menuW = 280;
+              CGFloat menuH = 270;
+              self.isMinimized = NO;
               
-              self.floatingMenu = [[UIView alloc] initWithFrame:CGRectMake(20, 90, menuW, menuH)];
-              self.floatingMenu.backgroundColor = [[UIColor colorWithRed:0.08 green:0.08 blue:0.1 alpha:0.92] colorWithAlphaComponent:0.92];
+              self.floatingMenu = [[UIView alloc] initWithFrame:CGRectMake(20, 80, menuW, menuH)];
+              self.floatingMenu.backgroundColor = [[UIColor colorWithRed:0.08 green:0.08 blue:0.1 alpha:0.95] colorWithAlphaComponent:0.95];
               self.floatingMenu.layer.cornerRadius = 16;
               self.floatingMenu.layer.borderWidth = 1.5;
               self.floatingMenu.layer.borderColor = [UIColor colorWithRed:1.0 green:0.18 blue:0.33 alpha:0.8].CGColor;
@@ -94,26 +132,68 @@ jobs:
               UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
               [self.floatingMenu addGestureRecognizer:pan];
 
-              UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, menuW, 35)];
-              title.text = @"⚡ TIKTOK LIVE ACCELERATOR";
-              title.textColor = [UIColor whiteColor];
-              title.font = [UIFont boldSystemFontOfSize:13];
-              title.textAlignment = NSTextAlignmentCenter;
-              title.backgroundColor = [UIColor colorWithRed:0.15 green:0.15 blue:0.18 alpha:1.0];
-              [self.floatingMenu addSubview:title];
+              UIView *headerView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, menuW, 36)];
+              headerView.backgroundColor = [UIColor colorWithRed:0.15 green:0.15 blue:0.18 alpha:1.0];
+              [self.floatingMenu addSubview:headerView];
 
-              self.statusLabel = [[UILabel alloc] initWithFrame:CGRectMake(10, 40, menuW - 20, 22)];
+              UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(10, 0, menuW - 50, 36)];
+              title.text = @"⚡ TIKTOK ACCELERATOR";
+              title.textColor = [UIColor whiteColor];
+              title.font = [UIFont boldSystemFontOfSize:12];
+              [headerView addSubview:title];
+
+              self.toggleBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+              self.toggleBtn.frame = CGRectMake(menuW - 36, 0, 36, 36);
+              [self.toggleBtn setTitle:@"➖" forState:UIControlStateNormal];
+              [self.toggleBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+              [self.toggleBtn addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
+              [headerView addSubview:self.toggleBtn];
+
+              self.contentContainer = [[UIView alloc] initWithFrame:CGRectMake(0, 36, menuW, menuH - 36)];
+              [self.floatingMenu addSubview:self.contentContainer];
+
+              UIButton *loginBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+              loginBtn.frame = CGRectMake(10, 10, 80, 30);
+              [loginBtn setTitle:@"🔑 D.Nhập" forState:UIControlStateNormal];
+              [loginBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+              loginBtn.backgroundColor = [UIColor colorWithRed:0.25 green:0.25 blue:0.3 alpha:1.0];
+              loginBtn.titleLabel.font = [UIFont boldSystemFontOfSize:11];
+              loginBtn.layer.cornerRadius = 6;
+              [loginBtn addTarget:self action:@selector(goToLogin) forControlEvents:UIControlEventTouchUpInside];
+              [self.contentContainer addSubview:loginBtn];
+
+              UIButton *liveHomeBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+              liveHomeBtn.frame = CGRectMake(98, 10, 80, 30);
+              [liveHomeBtn setTitle:@"🏠 Live" forState:UIControlStateNormal];
+              [liveHomeBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+              liveHomeBtn.backgroundColor = [UIColor colorWithRed:0.25 green:0.25 blue:0.3 alpha:1.0];
+              liveHomeBtn.titleLabel.font = [UIFont boldSystemFontOfSize:11];
+              liveHomeBtn.layer.cornerRadius = 6;
+              [liveHomeBtn addTarget:self action:@selector(goToLive) forControlEvents:UIControlEventTouchUpInside];
+              [self.contentContainer addSubview:liveHomeBtn];
+
+              UIButton *reloadBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+              reloadBtn.frame = CGRectMake(186, 10, 84, 30);
+              [reloadBtn setTitle:@"🔄 Tải lại" forState:UIControlStateNormal];
+              [reloadBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+              reloadBtn.backgroundColor = [UIColor colorWithRed:0.25 green:0.25 blue:0.3 alpha:1.0];
+              reloadBtn.titleLabel.font = [UIFont boldSystemFontOfSize:11];
+              reloadBtn.layer.cornerRadius = 6;
+              [reloadBtn addTarget:self action:@selector(reloadPage) forControlEvents:UIControlEventTouchUpInside];
+              [self.contentContainer addSubview:reloadBtn];
+
+              self.statusLabel = [[UILabel alloc] initWithFrame:CGRectMake(10, 48, menuW - 20, 20)];
               self.statusLabel.text = @"Trạng thái: 1.0x (Gốc)";
               self.statusLabel.textColor = [UIColor systemGreenColor];
               self.statusLabel.font = [UIFont systemFontOfSize:12 weight:UIFontWeightMedium];
               self.statusLabel.textAlignment = NSTextAlignmentCenter;
-              [self.floatingMenu addSubview:self.statusLabel];
+              [self.contentContainer addSubview:self.statusLabel];
 
               NSArray *speeds = @[@"1.0x", @"1.25x", @"1.5x", @"2.0x"];
               CGFloat btnW = (menuW - 50) / 4;
               for (NSInteger i = 0; i < speeds.count; i++) {
                   UIButton *btn = [UIButton buttonWithType:UIButtonTypeSystem];
-                  btn.frame = CGRectMake(10 + i * (btnW + 8), 68, btnW, 32);
+                  btn.frame = CGRectMake(10 + i * (btnW + 8), 75, btnW, 32);
                   [btn setTitle:speeds[i] forState:UIControlStateNormal];
                   [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
                   btn.backgroundColor = [UIColor colorWithRed:0.2 green:0.2 blue:0.25 alpha:1.0];
@@ -121,30 +201,45 @@ jobs:
                   btn.layer.cornerRadius = 6;
                   btn.tag = i;
                   [btn addTarget:self action:@selector(changeSpeed:) forControlEvents:UIControlEventTouchUpInside];
-                  [self.floatingMenu addSubview:btn];
+                  [self.contentContainer addSubview:btn];
               }
 
               UIButton *syncBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-              syncBtn.frame = CGRectMake(10, 110, menuW - 20, 38);
+              syncBtn.frame = CGRectMake(10, 118, menuW - 20, 36);
               [syncBtn setTitle:@"⏩ Tua Đến Đầu Live (Xóa Trễ Buffer)" forState:UIControlStateNormal];
               [syncBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
               syncBtn.backgroundColor = [UIColor colorWithRed:0.9 green:0.1 blue:0.3 alpha:1.0];
               syncBtn.titleLabel.font = [UIFont boldSystemFontOfSize:12];
               syncBtn.layer.cornerRadius = 8;
               [syncBtn addTarget:self action:@selector(syncToLiveEdge) forControlEvents:UIControlEventTouchUpInside];
-              [self.floatingMenu addSubview:syncBtn];
+              [self.contentContainer addSubview:syncBtn];
 
               UIButton *turboBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-              turboBtn.frame = CGRectMake(10, 156, menuW - 20, 38);
+              turboBtn.frame = CGRectMake(10, 162, menuW - 20, 36);
               [turboBtn setTitle:@"🚀 Bật Chế Độ Càn Tốc (Ép Live 1.5x)" forState:UIControlStateNormal];
               [turboBtn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
               turboBtn.backgroundColor = [UIColor colorWithRed:0.0 green:0.9 blue:0.8 alpha:1.0];
               turboBtn.titleLabel.font = [UIFont boldSystemFontOfSize:12];
               turboBtn.layer.cornerRadius = 8;
               [turboBtn addTarget:self action:@selector(enableTurboMode) forControlEvents:UIControlEventTouchUpInside];
-              [self.floatingMenu addSubview:turboBtn];
+              [self.contentContainer addSubview:turboBtn];
 
               [self.view addSubview:self.floatingMenu];
+          }
+
+          - (void)toggleMenu {
+              self.isMinimized = !self.isMinimized;
+              [UIView animateWithDuration:0.25 animations:^{
+                  if (self.isMinimized) {
+                      self.floatingMenu.frame = CGRectMake(self.floatingMenu.frame.origin.x, self.floatingMenu.frame.origin.y, 60, 36);
+                      self.contentContainer.hidden = YES;
+                      [self.toggleBtn setTitle:@"⚡" forState:UIControlStateNormal];
+                  } else {
+                      self.floatingMenu.frame = CGRectMake(self.floatingMenu.frame.origin.x, self.floatingMenu.frame.origin.y, 280, 270);
+                      self.contentContainer.hidden = NO;
+                      [self.toggleBtn setTitle:@"➖" forState:UIControlStateNormal];
+                  }
+              }];
           }
 
           - (void)handlePan:(UIPanGestureRecognizer *)pan {
@@ -155,6 +250,20 @@ jobs:
               if (pan.state == UIGestureRecognizerStateBegan || pan.state == UIGestureRecognizerStateChanged) {
                   self.floatingMenu.center = CGPointMake(self.initialCenter.x + translation.x, self.initialCenter.y + translation.y);
               }
+          }
+
+          - (void)goToLogin {
+              NSURL *url = [NSURL URLWithString:@"https://www.tiktok.com/login"];
+              [self.webView loadRequest:[NSURLRequest requestWithURL:url]];
+          }
+
+          - (void)goToLive {
+              NSURL *url = [NSURL URLWithString:@"https://www.tiktok.com/live"];
+              [self.webView loadRequest:[NSURLRequest requestWithURL:url]];
+          }
+
+          - (void)reloadPage {
+              [self.webView reload];
           }
 
           - (void)changeSpeed:(UIButton *)sender {
@@ -179,6 +288,14 @@ jobs:
               self.statusLabel.text = @"🚀 Đã ép phát nhanh 1.5x!";
           }
 
+          // Phóng to giao diện TikTok sau khi tải xong trang
+          - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
+              NSString *expandJS = @"document.body.style.zoom = '1.0';"
+                                   "var v = document.querySelector('video');"
+                                   "if(v){ v.style.objectFit = 'cover'; }";
+              [webView evaluateJavaScript:expandJS completionHandler:nil];
+          }
+
           @end
 
           @interface AppDelegate : UIResponder <UIApplicationDelegate>
@@ -201,13 +318,13 @@ jobs:
           }
           EOF
 
-          # 3. Biên dịch Native ARM64 bằng Clang chính xác với SDK iOS
+          # 3. Biên dịch Native ARM64 bằng Clang
           SDKPATH=$(xcrun --sdk iphoneos --show-sdk-path)
           clang -arch arm64 -miphoneos-version-min=14.0 -isysroot "$SDKPATH" \
             -fobjc-arc -framework UIKit -framework Foundation -framework WebKit \
             main.m -o Payload/TikTokTool.app/TikTokTool
 
-          # 4. Đóng gói file IPA
+          # 4. Nén thành file IPA
           zip -r TikTokTool.ipa Payload
 
       - name: Upload IPA Artifact
