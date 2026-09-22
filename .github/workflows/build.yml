@@ -13,57 +13,38 @@ jobs:
       - name: Compile and Package 3D Game IPA
         run: |
           mkdir -p Payload/SunsetRacer.app
-          
-          # 1. Tạo file Info.plist chuẩn iOS
-          cat << 'EOF' > Payload/SunsetRacer.app/Info.plist
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>CFBundleDevelopmentRegion</key>
-              <string>en</string>
-              <key>CFBundleExecutable</key>
-              <string>SunsetRacer</string>
-              <key>CFBundleIdentifier</key>
-              <string>com.devnvios.sunsetracer3d</string>
-              <key>CFBundleInfoDictionaryVersion</key>
-              <string>6.0</string>
-              <key>CFBundleName</key>
-              <string>SunsetRacer</string>
-              <key>CFBundlePackageType</key>
-              <string>APPL</string>
-              <key>CFBundleShortVersionString</key>
-              <string>1.0</string>
-              <key>CFBundleVersion</key>
-              <string>1</string>
-              <key>LSRequiresIPhoneOS</key>
-              <true/>
-              <key>UIRequiresFullScreen</key>
-              <true/>
-              <key>UIStatusBarHidden</key>
-              <true/>
-              <key>UISupportedInterfaceOrientations</key>
-              <array>
-                  <string>UIInterfaceOrientationLandscapeRight</string>
-                  <string>UIInterfaceOrientationLandscapeLeft</string>
-              </array>
-              <key>UIRequiredDeviceCapabilities</key>
-              <array>
-                  <string>arm64</string>
-              </array>
-              <key>CADisableMinimumFrameDurationOnPhone</key>
-              <true/>
-          </dict>
-          EOF
 
-          # Convert Info.plist sang dạng Binary chuẩn cho ESign / iOS
-          plutil -convert binary1 Payload/SunsetRacer.app/Info.plist
+          # 1. Tạo Info.plist an toàn tuyệt đối bằng Python (không bị lỗi EOF)
+          python3 -c "
+          import plistlib
+          plist = {
+              'CFBundleDevelopmentRegion': 'en',
+              'CFBundleExecutable': 'SunsetRacer',
+              'CFBundleIdentifier': 'com.devnvios.sunsetracer3d',
+              'CFBundleInfoDictionaryVersion': '6.0',
+              'CFBundleName': 'SunsetRacer',
+              'CFBundlePackageType': 'APPL',
+              'CFBundleShortVersionString': '1.0',
+              'CFBundleVersion': '1',
+              'LSRequiresIPhoneOS': True,
+              'UIRequiresFullScreen': True,
+              'UIStatusBarHidden': True,
+              'UISupportedInterfaceOrientations': [
+                  'UIInterfaceOrientationLandscapeRight',
+                  'UIInterfaceOrientationLandscapeLeft'
+              ],
+              'UIRequiredDeviceCapabilities': ['arm64'],
+              'CADisableMinimumFrameDurationOnPhone': True
+          }
+          with open('Payload/SunsetRacer.app/Info.plist', 'wb') as f:
+              plistlib.dump(plist, f, fmt=plistlib.FMT_BINARY)
+          "
 
-          # Tạo file PkgInfo bắt buộc của cấu trúc .app iOS
-          echo -n "APPL????" > Payload/SunsetRacer.app/PkgInfo
+          # Tạo file PkgInfo bắt buộc cho cấu trúc iOS .app
+          printf "APPL????" > Payload/SunsetRacer.app/PkgInfo
 
           # 2. Tạo Mã Nguồn Trò Chơi 3D Hoàng Hôn
-          cat << 'EOF' > main.m
+          cat << 'ENDOFCODE' > main.m
           #import <UIKit/UIKit.h>
           #import <SceneKit/SceneKit.h>
           #import <QuartzCore/QuartzCore.h>
@@ -337,14 +318,14 @@ jobs:
                   return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
               }
           }
-          EOF
+          ENDOFCODE
 
           # 3. Biên dịch game bằng Clang
           xcrun -sdk iphoneos clang -arch arm64 -fobjc-arc -w \
             -framework UIKit -framework Foundation -framework SceneKit -framework QuartzCore -framework CoreGraphics -framework AVFoundation \
             main.m -o Payload/SunsetRacer.app/SunsetRacer
 
-          # 4. Đóng gói chuẩn zip cho IPA
+          # 4. Đóng gói IPA
           zip -r SunsetRacer.ipa Payload
 
       - name: Upload IPA Artifact
