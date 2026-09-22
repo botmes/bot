@@ -1,234 +1,198 @@
-name: Build Love Thuy Mid Autumn IPA
+import SwiftUI
 
-on:
-  workflow_dispatch:
+struct ContentView: View {
+    @State private var phase = 0
+    @State private var penOffset: CGSize = CGSize(width: -300, height: 100)
+    @State private var textProgress: CGFloat = 0.0
+    @State private var heartProgress: CGFloat = 0.0
+    @State private var showFireworks = false
+    
+    var body: some View {
+        ZStack {
+            // 1. Nền bầu trời đêm Trung Thu
+            LinearGradient(gradient: Gradient(colors: [Color(red: 0.05, green: 0.05, blue: 0.2), .black]), startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
+            
+            // Mặt trăng
+            Circle()
+                .fill(Color.yellow.opacity(0.8))
+                .frame(width: 150, height: 150)
+                .shadow(color: .yellow, radius: 20, x: 0, y: 0)
+                .position(x: UIScreen.main.bounds.width - 100, y: 100)
+            
+            // 2. Lồng đèn Trung Thu (Hiện ra sau khi vẽ xong)
+            if phase >= 3 {
+                HStack(spacing: 80) {
+                    LanternView(color: .red)
+                    LanternView(color: .orange)
+                    Spacer()
+                    LanternView(color: .yellow)
+                    LanternView(color: .red)
+                }
+                .padding(.top, -50)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+            
+            VStack(spacing: 20) {
+                // 3. Chữ "love Thuỳ"
+                Text("love Thuỳ")
+                    .font(.custom("Chalkboard SE", size: 60).italic()) // Font chữ mềm mại
+                    .foregroundColor(.white)
+                    .shadow(color: .pink, radius: 5, x: 0, y: 0)
+                    .mask(
+                        Rectangle()
+                            .frame(width: UIScreen.main.bounds.width * textProgress, height: 100)
+                            .offset(x: UIScreen.main.bounds.width * (textProgress - 1) / 2)
+                    )
+                
+                // 4. Trái tim màu hồng
+                HeartShape()
+                    .trim(from: 0, to: heartProgress)
+                    .stroke(Color.pink, style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
+                    .frame(width: 150, height: 150)
+                    .shadow(color: .pink, radius: 10, x: 0, y: 0)
+            }
+            .offset(y: 50)
+            
+            // 5. Cây bút thần di chuyển
+            if phase < 3 {
+                Image(systemName: "wand.and.stars") // Icon cây bút/đũa phép
+                    .font(.system(size: 50))
+                    .foregroundColor(.yellow)
+                    .shadow(color: .yellow, radius: 10)
+                    .rotationEffect(.degrees(135))
+                    .offset(penOffset)
+            }
+            
+            // 6. Pháo hoa mang tên Thuỳ
+            if showFireworks {
+                FireworkEffectView(name: "Thuỳ")
+            }
+        }
+        .onAppear {
+            startMagicAnimation()
+        }
+    }
+    
+    func startMagicAnimation() {
+        // Bước 1: Bút chạy ra và viết chữ
+        withAnimation(.easeInOut(duration: 2.5)) {
+            textProgress = 1.0
+            penOffset = CGSize(width: 150, height: -20)
+        }
+        
+        // Bước 2: Bút di chuyển xuống vẽ trái tim
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            withAnimation(.easeInOut(duration: 0.5)) {
+                penOffset = CGSize(width: 0, height: 150)
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                withAnimation(.easeInOut(duration: 2.0)) {
+                    heartProgress = 1.0
+                    // Bút lượn vòng theo trái tim (mô phỏng)
+                    penOffset = CGSize(width: 0, height: 250)
+                }
+                
+                // Bước 3: Bút biến mất, hiện lồng đèn và bắn pháo hoa
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+                    withAnimation {
+                        phase = 3
+                        showFireworks = true
+                    }
+                }
+            }
+        }
+    }
+}
 
-jobs:
-  build:
-    runs-on: macos-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+// MARK: - Shape Trái Tim
+struct HeartShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let width = rect.width
+        let height = rect.height
+        
+        path.move(to: CGPoint(x: width / 2, y: height * 0.25))
+        path.addCurve(to: CGPoint(x: width, y: height * 0.25),
+                      control1: CGPoint(x: width * 0.75, y: 0),
+                      control2: CGPoint(x: width, y: height * 0.1))
+        path.addCurve(to: CGPoint(x: width / 2, y: height),
+                      control1: CGPoint(x: width, y: height * 0.6),
+                      control2: CGPoint(x: width / 2, y: height * 0.8))
+        path.addCurve(to: CGPoint(x: 0, y: height * 0.25),
+                      control1: CGPoint(x: width / 2, y: height * 0.8),
+                      control2: CGPoint(x: 0, y: height * 0.6))
+        path.addCurve(to: CGPoint(x: width / 2, y: height * 0.25),
+                      control1: CGPoint(x: 0, y: height * 0.1),
+                      control2: CGPoint(x: width * 0.25, y: 0))
+        return path
+    }
+}
 
-      - name: Compile and Package App IPA
-        run: |
-          mkdir -p Payload/SunsetRacer.app
+// MARK: - Component Lồng Đèn Trung Thu
+struct LanternView: View {
+    var color: Color
+    @State private var swing = false
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            Rectangle().fill(Color.orange).frame(width: 4, height: 40) // Dây treo
+            Capsule()
+                .fill(color)
+                .frame(width: 50, height: 70)
+                .overlay(
+                    Capsule().stroke(Color.yellow, lineWidth: 2)
+                )
+                .shadow(color: color, radius: 15)
+            Rectangle().fill(Color.yellow).frame(width: 10, height: 20) // Đuôi lồng đèn
+        }
+        .rotationEffect(.degrees(swing ? 5 : -5), anchor: .top)
+        .onAppear {
+            withAnimation(Animation.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                swing.toggle()
+            }
+        }
+    }
+}
 
-          # 1. Tạo Info.plist chuẩn iOS
-          python3 -c "
-          import plistlib
-          plist = {
-              'CFBundleDevelopmentRegion': 'en',
-              'CFBundleExecutable': 'SunsetRacer',
-              'CFBundleIdentifier': 'com.devnvios.lovethuy',
-              'CFBundleInfoDictionaryVersion': '6.0',
-              'CFBundleName': 'Love Thùy',
-              'CFBundlePackageType': 'APPL',
-              'CFBundleShortVersionString': '2.0',
-              'CFBundleVersion': '2',
-              'LSRequiresIPhoneOS': True,
-              'UIRequiresFullScreen': True,
-              'UIStatusBarHidden': True,
-              'UISupportedInterfaceOrientations': [
-                  'UIInterfaceOrientationLandscapeRight',
-                  'UIInterfaceOrientationLandscapeLeft'
-              ],
-              'UIRequiredDeviceCapabilities': ['arm64'],
-              'CADisableMinimumFrameDurationOnPhone': True
-          }
-          with open('Payload/SunsetRacer.app/Info.plist', 'wb') as f:
-              plistlib.dump(plist, f, fmt=plistlib.FMT_BINARY)
-          "
+// MARK: - Hiệu ứng Pháo Hoa chứa tên
+struct FireworkEffectView: View {
+    var name: String
+    @State private var explode = false
+    
+    var body: some View {
+        ZStack {
+            // Hạt pháo hoa toả ra
+            ForEach(0..<40, id: \.self) { i in
+                Circle()
+                    .fill(Color.randomPinkOrYellow())
+                    .frame(width: 8, height: 8)
+                    .offset(x: explode ? CGFloat.random(in: -200...200) : 0,
+                            y: explode ? CGFloat.random(in: -200...200) : 0)
+                    .opacity(explode ? 0 : 1)
+                    .animation(Animation.easeOut(duration: 1.5).delay(0.2).repeatForever(autoreverses: false), value: explode)
+            }
+            
+            // Tên "Thuỳ" toả sáng giữa pháo hoa
+            Text(name)
+                .font(.system(size: 80, weight: .bold, design: .rounded))
+                .foregroundColor(.yellow)
+                .shadow(color: .pink, radius: 20, x: 0, y: 0)
+                .scaleEffect(explode ? 1.5 : 0.1)
+                .opacity(explode ? 1 : 0)
+                .animation(Animation.spring(response: 0.6, dampingFraction: 0.5).delay(0.2), value: explode)
+        }
+        .onAppear {
+            explode = true
+        }
+    }
+}
 
-          printf "APPL????" > Payload/SunsetRacer.app/PkgInfo
-
-          # 2. Tạo Mã Nguồn Đỉnh Cao: Bút Bi Vẽ Lồng Đèn, Trung Thu & Pháo Hoa
-          cat << 'ENDOFCODE' > main.m
-          #import <UIKit/UIKit.h>
-          #import <QuartzCore/QuartzCore.h>
-
-          @interface MasterpieceViewController : UIViewController
-          @property (nonatomic, strong) CAShapeLayer *drawingLayer;
-          @property (nonatomic, strong) UIImageView *penTipView;
-          @property (nonatomic, strong) CAEmitterLayer *fireworksEmitter;
-          @end
-
-          @implementation MasterpieceViewController
-
-          - (BOOL)prefersStatusBarHidden { return YES; }
-          - (BOOL)prefersHomeIndicatorAutoHidden { return YES; }
-          - (UIInterfaceOrientationMask)supportedInterfaceOrientations {
-              return UIInterfaceOrientationMaskLandscape;
-          }
-
-          - (void)viewDidLoad {
-              [super viewDidLoad];
-              // Nền trời đêm Trung Thu huyền ảo
-              self.view.backgroundColor = [UIColor colorWithRed:0.02 green:0.01 blue:0.08 alpha:1.0];
-
-              [self setupBackgroundDecorations];
-              [self setupContinuousDrawingAnimation];
-              [self setupFireworksShow];
-          }
-
-          - (void)setupBackgroundDecorations {
-              // Trăng vàng Trung Thu lớn phát sáng
-              UIView *moon = [[UIView alloc] initWithFrame:CGRectMake(self.view.bounds.size.width - 150, 40, 100, 100)];
-              moon.backgroundColor = [UIColor colorWithRed:1.0 green:0.95 blue:0.8 alpha:1.0];
-              moon.layer.cornerRadius = 50;
-              moon.layer.shadowColor = [UIColor colorWithRed:1.0 green:0.85 blue:0.4 alpha:1.0].CGColor;
-              moon.layer.shadowRadius = 30;
-              moon.layer.shadowOpacity = 0.9;
-              moon.layer.shadowOffset = CGSizeZero;
-              moon.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
-              [self.view addSubview:moon];
-
-              // Tiêu đề chữ Love Thùy & Chúc Mừng Trung Thu
-              UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 30, self.view.bounds.size.width, 50)];
-              titleLabel.text = @"🏮 LOVE THÙY - CHÚC TẾT TRUNG THU AN LÀNH 🥮";
-              titleLabel.textColor = [UIColor colorWithRed:1.0 green:0.75 blue:0.3 alpha:1.0];
-              titleLabel.font = [UIFont fontWithName:@"HelveticaNeue-Bold" size:24];
-              titleLabel.textAlignment = NSTextAlignmentCenter;
-              titleLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-              [self.view addSubview:titleLabel];
-          }
-
-          - (void)setupContinuousDrawingAnimation {
-              // Tạo đường path phức hợp: Vẽ Trái Tim + Lồng Đèn Trung Thu + Chữ Thùy
-              UIBezierPath *path = [UIBezierPath bezierPath];
-              
-              // 1. Vẽ hình Trái Tim lớn bên trái
-              [path moveToPoint:CGPointMake(250, 200)];
-              [path addCurveToPoint:CGPointMake(150, 130) controlPoint1:CGPointMake(200, 140) controlPoint2:CGPointMake(160, 140)];
-              [path addCurveToPoint:CGPointMake(250, 260) controlPoint1:CGPointMake(140, 200) controlPoint2:CGPointMake(200, 240)];
-              [path addCurveToPoint:CGPointMake(350, 130) controlPoint1:CGPointMake(300, 240) controlPoint2:CGPointMake(360, 200)];
-              [path addCurveToPoint:CGPointMake(250, 200) controlPoint1:CGPointMake(340, 140) controlPoint2:CGPointMake(300, 140)];
-
-              // 2. Vẽ tiếp hình Lồng Đèn Trung Thu ở giữa
-              [path moveToPoint:CGPointMake(self.view.bounds.size.width / 2, 120)];
-              [path addLineToPoint:CGPointMake(self.view.bounds.size.width / 2 - 50, 160)];
-              [path addLineToPoint:CGPointMake(self.view.bounds.size.width / 2 - 50, 220)];
-              [path addLineToPoint:CGPointMake(self.view.bounds.size.width / 2, 260)];
-              [path addLineToPoint:CGPointMake(self.view.bounds.size.width / 2 + 50, 220)];
-              [path addLineToPoint:CGPointMake(self.view.bounds.size.width / 2 + 50, 160)];
-              [path closePath];
-
-              // Layer nét vẽ bút bi
-              self.drawingLayer = [CAShapeLayer layer];
-              self.drawingLayer.path = path.CGPath;
-              self.drawingLayer.strokeColor = [UIColor colorWithRed:1.0 green:0.3 blue:0.6 alpha:1.0].CGColor;
-              self.drawingLayer.fillColor = [UIColor colorWithRed:1.0 green:0.4 blue:0.7 alpha:0.25].CGColor;
-              self.drawingLayer.lineWidth = 5.0;
-              self.drawingLayer.lineCap = kCALineCapRound;
-              self.drawingLayer.lineJoin = kCALineJoinRound;
-              self.drawingLayer.strokeEnd = 0.0;
-              [self.view.layer addSublayer:self.drawingLayer];
-
-              // Hiệu ứng bút bi vẽ liên tục và tự tan biến lặp lại vô tận
-              CABasicAnimation *drawAnim = [CABasicAnimation animationWithKeyPath:@"strokeEnd"];
-              drawAnim.duration = 4.0;
-              drawAnim.fromValue = @(0.0);
-              drawAnim.toValue = @(1.0);
-              drawAnim.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
-              drawAnim.repeatCount = HUGE_VALF;
-              
-              // Hiệu ứng tự tan biến (Fade out/in mượt mà)
-              CABasicAnimation *fadeAnim = [CABasicAnimation animationWithKeyPath:@"opacity"];
-              fadeAnim.duration = 4.0;
-              fadeAnim.fromValue = @(1.0);
-              fadeAnim.toValue = @(0.2);
-              fadeAnim.autoreverses = YES;
-              fadeAnim.repeatCount = HUGE_VALF;
-
-              [self.drawingLayer addAnimation:drawAnim forKey:@"drawAction"];
-              [self.drawingLayer addAnimation:fadeAnim forKey:@"fadeAction"];
-
-              // Hình ảnh cây bút bi nhỏ chạy theo đường vẽ
-              self.penTipView = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, 35, 35)];
-              self.penTipView.backgroundColor = [UIColor whiteColor];
-              self.penTipView.layer.cornerRadius = 17.5;
-              self.penTipView.layer.borderColor = [UIColor cyanColor].CGColor;
-              self.penTipView.layer.borderWidth = 2.0;
-              [self.view addSubview:self.penTipView];
-
-              CAKeyframeAnimation *penAnim = [CAKeyframeAnimation animationWithKeyPath:@"position"];
-              penAnim.path = path.CGPath;
-              penAnim.duration = 4.0;
-              penAnim.calculationMode = kCAAnimationCalculationPaced;
-              penAnim.repeatCount = HUGE_VALF;
-              [self.penTipView.layer addAnimation:penAnim forKey:@"penMotion"];
-          }
-
-          - (void)setupFireworksShow {
-              // Pháo hoa nổ cực đại rực rỡ góc màn hình
-              self.fireworksEmitter = [CAEmitterLayer layer];
-              self.fireworksEmitter.emitterPosition = CGPointMake(self.view.bounds.size.width / 2, self.view.bounds.size.height);
-              self.fireworksEmitter.emitterSize = CGSizeMake(self.view.bounds.size.width, 10);
-
-              CAEmitterCell *rocket = [CAEmitterCell emitterCell];
-              rocket.birthRate = 2.0;
-              rocket.lifetime = 1.5;
-              rocket.velocity = 400;
-              rocket.velocityRange = 100;
-              rocket.yAcceleration = 150;
-              rocket.emissionRange = M_PI / 4;
-              rocket.scale = 0.12;
-
-              CAEmitterCell *sparkle = [CAEmitterCell emitterCell];
-              sparkle.birthRate = 1000;
-              sparkle.lifetime = 2.5;
-              sparkle.velocity = 180;
-              sparkle.scale = 0.08;
-              sparkle.scaleSpeed = -0.02;
-              sparkle.alphaSpeed = -0.35;
-              sparkle.spin = 3.0;
-
-              UIGraphicsBeginImageContext(CGSizeMake(12, 12));
-              CGContextRef ctx = UIGraphicsGetCurrentContext();
-              CGContextSetFillColorWithColor(ctx, [UIColor whiteColor].CGColor);
-              CGContextFillEllipseInRect(ctx, CGRectMake(0, 0, 12, 12));
-              UIImage *sparkImg = UIGraphicsGetImageFromCurrentImageContext();
-              UIGraphicsEndImageContext();
-
-              sparkle.contents = (__bridge id)[sparkImg CGImage];
-              rocket.emitterCells = @[sparkle];
-
-              self.fireworksEmitter.emitterCells = @[rocket];
-              [self.view.layer addSublayer:self.fireworksEmitter];
-          }
-
-          @end
-
-          @interface AppDelegate : UIResponder <UIApplicationDelegate>
-          @property (strong, nonatomic) UIWindow *window;
-          @end
-
-          @implementation AppDelegate
-          - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-              self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
-              self.window.rootViewController = [[MasterpieceViewController alloc] init];
-              [self.window makeKeyAndVisible];
-              return YES;
-          }
-          @end
-
-          int main(int argc, char * argv[]) {
-              @autoreleasepool {
-                  return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
-              }
-          }
-          ENDOFCODE
-
-          # 3. Biên dịch ứng dụng bằng Clang
-          xcrun -sdk iphoneos clang -arch arm64 -fobjc-arc -w \
-            -framework UIKit -framework Foundation -framework QuartzCore -framework CoreGraphics \
-            main.m -o Payload/SunsetRacer.app/SunsetRacer
-
-          # 4. Đóng gói IPA
-          zip -r SunsetRacer.ipa Payload
-
-      - name: Upload IPA Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: LoveThuy-Masterpiece-IPA
-          path: SunsetRacer.ipa
+// Tiện ích màu ngẫu nhiên cho pháo hoa
+extension Color {
+    static func randomPinkOrYellow() -> Color {
+        let colors: [Color] = [.pink, .yellow, .red, .orange, .white]
+        return colors.randomElement() ?? .pink
+    }
+}
