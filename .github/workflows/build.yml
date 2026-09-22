@@ -14,22 +14,26 @@ jobs:
         run: |
           mkdir -p Payload/SunsetRacer.app
           
-          # 1. Tạo file Info.plist cấu hình Xoay Ngang Màn Hình & Tối ưu iPhone 16 Pro
+          # 1. Tạo file Info.plist chuẩn iOS
           cat << 'EOF' > Payload/SunsetRacer.app/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
+              <key>CFBundleDevelopmentRegion</key>
+              <string>en</string>
+              <key>CFBundleExecutable</key>
+              <string>SunsetRacer</string>
               <key>CFBundleIdentifier</key>
               <string>com.devnvios.sunsetracer3d</string>
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
               <key>CFBundleName</key>
               <string>SunsetRacer</string>
               <key>CFBundlePackageType</key>
               <string>APPL</string>
-              <key>CFBundleExecutable</key>
-              <string>SunsetRacer</string>
               <key>CFBundleShortVersionString</key>
-              <string>2.0</string>
+              <string>1.0</string>
               <key>CFBundleVersion</key>
               <string>1</string>
               <key>LSRequiresIPhoneOS</key>
@@ -46,14 +50,19 @@ jobs:
               <key>UIRequiredDeviceCapabilities</key>
               <array>
                   <string>arm64</string>
-                  <string>metal</string>
               </array>
               <key>CADisableMinimumFrameDurationOnPhone</key>
               <true/>
           </dict>
           EOF
 
-          # 2. Tạo Mã Nguồn Trò Chơi 3D Hoàng Hôn (Sửa chính xác API SceneKit)
+          # Convert Info.plist sang dạng Binary chuẩn cho ESign / iOS
+          plutil -convert binary1 Payload/SunsetRacer.app/Info.plist
+
+          # Tạo file PkgInfo bắt buộc của cấu trúc .app iOS
+          echo -n "APPL????" > Payload/SunsetRacer.app/PkgInfo
+
+          # 2. Tạo Mã Nguồn Trò Chơi 3D Hoàng Hôn
           cat << 'EOF' > main.m
           #import <UIKit/UIKit.h>
           #import <SceneKit/SceneKit.h>
@@ -73,7 +82,6 @@ jobs:
           @property (nonatomic, strong) UILabel *speedLabel;
           @property (nonatomic, assign) NSInteger score;
           @property (nonatomic, assign) float currentSpeed;
-          @property (nonatomic, assign) CGPoint lastTouchPos;
           @end
 
           @implementation GameViewController
@@ -91,7 +99,6 @@ jobs:
               self.currentSpeed = 1.2f;
               self.rings = [NSMutableArray array];
 
-              // Cấu hình SCNView cho iPhone 16 Pro (Đã sửa tên API SCNAntialiasingModeMultisampling4X)
               self.scnView = [[SCNView alloc] initWithFrame:self.view.bounds];
               self.scnView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
               self.scnView.rendersContinuously = YES;
@@ -337,7 +344,7 @@ jobs:
             -framework UIKit -framework Foundation -framework SceneKit -framework QuartzCore -framework CoreGraphics -framework AVFoundation \
             main.m -o Payload/SunsetRacer.app/SunsetRacer
 
-          # 4. Đóng gói thành file SunsetRacer.ipa
+          # 4. Đóng gói chuẩn zip cho IPA
           zip -r SunsetRacer.ipa Payload
 
       - name: Upload IPA Artifact
