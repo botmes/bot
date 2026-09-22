@@ -14,7 +14,7 @@ jobs:
         run: |
           mkdir -p Payload/TikTokTool.app
           
-          # 1. Tạo file cấu hình Info.plist
+          # 1. Tạo file cấu hình Info.plist đầy đủ
           cat << 'EOF' > Payload/TikTokTool.app/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -29,9 +29,9 @@ jobs:
               <key>CFBundleExecutable</key>
               <string>TikTokTool</string>
               <key>CFBundleShortVersionString</key>
-              <string>1.4</string>
+              <string>1.6</string>
               <key>CFBundleVersion</key>
-              <string>5</string>
+              <string>7</string>
               <key>LSRequiresIPhoneOS</key>
               <true/>
               <key>NSAppTransportSecurity</key>
@@ -47,7 +47,7 @@ jobs:
           </plist>
           EOF
 
-          # 2. Tạo mã nguồn Objective-C
+          # 2. Tạo mã nguồn Objective-C hoàn chỉnh
           cat << 'EOF' > main.m
           #import <UIKit/UIKit.h>
           #import <WebKit/WebKit.h>
@@ -73,10 +73,12 @@ jobs:
               config.allowsInlineMediaPlayback = YES;
               config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
 
-              self.webView = [[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 0, 0) configuration:config];
+              self.webView = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:config];
               self.webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
               self.webView.navigationDelegate = self;
-              self.webView.customUserAgent = @"Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1";
+              
+              // Giả lập Desktop User-Agent để TikTok không chặn WebLive trên iOS
+              self.webView.customUserAgent = @"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15";
               
               [self.view addSubview:self.webView];
 
@@ -84,6 +86,11 @@ jobs:
               [self.webView loadRequest:[NSURLRequest requestWithURL:url]];
 
               [self setupFloatingMenu];
+          }
+
+          - (void)viewDidLayoutSubviews {
+              [super viewDidLayoutSubviews];
+              self.webView.frame = self.view.bounds;
           }
 
           - (BOOL)prefersStatusBarHidden {
@@ -262,7 +269,8 @@ jobs:
           }
 
           - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
-              NSString *jsFix = @"var meta = document.createElement('meta'); meta.name = 'viewport'; meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'; document.getElementsByTagName('head')[0].appendChild(meta); var style = document.createElement('style'); style.innerHTML = 'main, body, html { max-width: 100% !important; width: 100% !important; } video { width: 100% !important; height: 100% !important; object-fit: cover !important; }'; document.head.appendChild(style);";
+              // Tự động phát video và xóa các banner che màn hình
+              NSString *jsFix = @"var style = document.createElement('style'); style.innerHTML = 'video { object-fit: cover !important; width: 100% !important; height: 100% !important; }'; document.head.appendChild(style); var v = document.querySelector('video'); if(v){ v.muted = false; v.play(); }";
               [webView evaluateJavaScript:jsFix completionHandler:nil];
           }
 
@@ -288,7 +296,7 @@ jobs:
           }
           EOF
 
-          # 3. Biên dịch tích hợp đầy đủ CoreGraphics framework
+          # 3. Biên dịch chính xác với Clang
           xcrun -sdk iphoneos clang -arch arm64 -fobjc-arc \
             -framework UIKit -framework Foundation -framework WebKit -framework CoreGraphics \
             main.m -o Payload/TikTokTool.app/TikTokTool
