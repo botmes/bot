@@ -1,0 +1,120 @@
+name: Build Native iOS App
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Compile and Package IPA
+        run: |
+          mkdir -p Payload/DemoApp.app
+          
+          # 1. Tạo file cấu hình Info.plist
+          cat << 'EOF' > Payload/DemoApp.app/Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleIdentifier</key>
+              <string>com.example.demoapp</string>
+              <key>CFBundleName</key>
+              <string>DemoApp</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleExecutable</key>
+              <string>DemoApp</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+              <key>LSRequiresIPhoneOS</key>
+              <true/>
+              <key>UIRequiredDeviceCapabilities</key>
+              <array>
+                  <string>arm64</string>
+              </array>
+          </dict>
+          </plist>
+          EOF
+
+          # 2. Viết mã nguồn App iOS (Objective-C UIKit)
+          cat << 'EOF' > main.m
+          #import <UIKit/UIKit.h>
+
+          @interface ViewController : UIViewController
+          @property (nonatomic, strong) UILabel *label;
+          @property (nonatomic, strong) UIButton *button;
+          @property (nonatomic, assign) NSInteger count;
+          @end
+
+          @implementation ViewController
+          - (void)viewDidLoad {
+              [super viewDidLoad];
+              self.view.backgroundColor = [UIColor systemBackgroundColor];
+              self.count = 0;
+
+              self.label = [[UILabel alloc] initWithFrame:CGRectMake(20, 200, self.view.bounds.size.width - 40, 90)];
+              self.label.text = @"App iOS Đầu Tiên Của Bạn!\n\nBấm nút bên dưới:";
+              self.label.numberOfLines = 0;
+              self.label.textAlignment = NSTextAlignmentCenter;
+              self.label.font = [UIFont boldSystemFontOfSize:20];
+              [self.view addSubview:self.label];
+
+              self.button = [UIButton buttonWithType:UIButtonTypeSystem];
+              self.button.frame = CGRectMake((self.view.bounds.size.width - 220)/2, 330, 220, 55);
+              [self.button setTitle:@" Bấm vào tôi 🎉" forState:UIControlStateNormal];
+              self.button.titleLabel.font = [UIFont systemFontOfSize:18 weight:UIFontWeightBold];
+              self.button.backgroundColor = [UIColor systemBlueColor];
+              [self.button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+              self.button.layer.cornerRadius = 14;
+              [self.button addTarget:self action:@selector(buttonTapped) forControlEvents:UIControlEventTouchUpInside];
+              [self.view addSubview:self.button];
+          }
+
+          - (void)buttonTapped {
+              self.count++;
+              self.label.text = [NSString stringWithFormat:@"Tuyệt vời!\n\nBạn đã bấm %ld lần 🔥", (long)self.count];
+              
+              CGFloat red = (arc4random() % 100) / 250.0 + 0.6;
+              CGFloat green = (arc4random() % 100) / 250.0 + 0.6;
+              CGFloat blue = (arc4random() % 100) / 250.0 + 0.6;
+              self.view.backgroundColor = [UIColor colorWithRed:red green:green blue:blue alpha:1.0];
+          }
+          @end
+
+          @interface AppDelegate : UIResponder <UIApplicationDelegate>
+          @property (strong, nonatomic) UIWindow *window;
+          @end
+
+          @implementation AppDelegate
+          - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+              self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
+              self.window.rootViewController = [[ViewController alloc] init];
+              [self.window makeKeyAndVisible];
+              return YES;
+          }
+          @end
+
+          int main(int argc, char * argv[]) {
+              @autoreleasepool {
+                  return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
+              }
+          }
+          EOF
+
+          # 3. Biên dịch ra file chạy Native cho iOS (ARM64)
+          xcrun -sdk iphoneos clang -arch arm64 -fobjc-arc -framework UIKit -framework Foundation main.m -o Payload/DemoApp.app/DemoApp
+
+          # 4. Đóng gói thành file IPA
+          zip -r DemoApp.ipa Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DemoApp-IPA
+          path: DemoApp.ipa
