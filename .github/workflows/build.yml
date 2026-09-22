@@ -47,7 +47,7 @@ jobs:
           </plist>
           EOF
 
-          # 2. Mã nguồn Objective-C ép Fullscreen 100% + Inject CSS phóng to TikTok
+          # 2. Mã nguồn Objective-C tràn viền Fullscreen + Floating Menu
           cat << 'EOF' > main.m
           #import <UIKit/UIKit.h>
           #import <WebKit/WebKit.h>
@@ -68,17 +68,8 @@ jobs:
               [super viewDidLoad];
               self.view.backgroundColor = [UIColor blackColor];
 
-              // Cấu hình Inject JS/CSS để ép TikTok tràn 100% màn hình
-              NSString *cssFix = @"* { max-width: none !important; } "
-                                  "html, body, #app, main, div[class*='layout'], div[class*='container'] { "
-                                  "  width: 100vw !important; height: 100vh !important; margin: 0 !important; padding: 0 !important; "
-                                  "} "
-                                  "video { object-fit: cover !important; width: 100% !important; height: 100% !important; }";
-              
-              NSString *jsInject = [NSString stringWithFormat:
-                  @"var style = document.createElement('style');"
-                   "style.innerHTML = '%@';"
-                   "document.head.appendChild(style);", cssFix];
+              // Inject CSS/JS ép tràn viền màn hình (Chuỗi 1 dòng sạch chuẩn Objective-C)
+              NSString *jsInject = @"var style = document.createElement('style'); style.innerHTML = '* { max-width: none !important; } html, body, #app, main { width: 100vw !important; height: 100vh !important; margin: 0 !important; padding: 0 !important; } video { object-fit: cover !important; width: 100% !important; height: 100% !important; }'; document.head.appendChild(style);";
 
               WKUserScript *script = [[WKUserScript alloc] initWithSource:jsInject 
                                                              injectionTime:WKUserScriptInjectionTimeAtDocumentEnd 
@@ -89,7 +80,6 @@ jobs:
               config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
               [config.userContentController addUserScript:script];
 
-              // Khởi tạo WKWebView
               self.webView = [[WKWebView alloc] initWithFrame:CGRectZero configuration:config];
               self.webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
               self.webView.navigationDelegate = self;
@@ -98,7 +88,7 @@ jobs:
               
               [self.view addSubview:self.webView];
 
-              // Dùng AutoLayout ép tràn viền tuyệt đối
+              // AutoLayout tràn full viền
               self.webView.translatesAutoresizingMaskIntoConstraints = NO;
               [NSLayoutConstraint activateConstraints:@[
                   [self.webView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
@@ -114,7 +104,7 @@ jobs:
           }
 
           - (BOOL)prefersStatusBarHidden {
-              return YES; // Ẩn thanh trạng thái để tối đa hóa không gian nhìn
+              return YES;
           }
 
           - (void)setupFloatingMenu {
@@ -288,11 +278,8 @@ jobs:
               self.statusLabel.text = @"🚀 Đã ép phát nhanh 1.5x!";
           }
 
-          // Phóng to giao diện TikTok sau khi tải xong trang
           - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
-              NSString *expandJS = @"document.body.style.zoom = '1.0';"
-                                   "var v = document.querySelector('video');"
-                                   "if(v){ v.style.objectFit = 'cover'; }";
+              NSString *expandJS = @"document.body.style.zoom = '1.0'; var v = document.querySelector('video'); if(v){ v.style.objectFit = 'cover'; }";
               [webView evaluateJavaScript:expandJS completionHandler:nil];
           }
 
