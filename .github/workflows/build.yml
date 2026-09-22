@@ -14,7 +14,7 @@ jobs:
         run: |
           mkdir -p Payload/TikTokTool.app
           
-          # 1. Tạo file cấu hình Info.plist đầy đủ
+          # 1. Tạo file cấu hình Info.plist
           cat << 'EOF' > Payload/TikTokTool.app/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -29,9 +29,9 @@ jobs:
               <key>CFBundleExecutable</key>
               <string>TikTokTool</string>
               <key>CFBundleShortVersionString</key>
-              <string>1.6</string>
+              <string>1.7</string>
               <key>CFBundleVersion</key>
-              <string>7</string>
+              <string>8</string>
               <key>LSRequiresIPhoneOS</key>
               <true/>
               <key>NSAppTransportSecurity</key>
@@ -47,7 +47,7 @@ jobs:
           </plist>
           EOF
 
-          # 2. Tạo mã nguồn Objective-C hoàn chỉnh
+          # 2. Tạo mã nguồn Objective-C sửa triệt để Viewport & Bypass
           cat << 'EOF' > main.m
           #import <UIKit/UIKit.h>
           #import <WebKit/WebKit.h>
@@ -72,13 +72,14 @@ jobs:
               WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
               config.allowsInlineMediaPlayback = YES;
               config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
+              config.allowsAirPlayForMediaPlayback = YES;
 
               self.webView = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:config];
               self.webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
               self.webView.navigationDelegate = self;
               
-              // Giả lập Desktop User-Agent để TikTok không chặn WebLive trên iOS
-              self.webView.customUserAgent = @"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15";
+              // Sử dụng User-Agent iPad để TikTok cung cấp giao diện PC mà không bị lỗi "Thử trình duyệt khác"
+              self.webView.customUserAgent = @"Mozilla/5.0 (iPad; CPU OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1";
               
               [self.view addSubview:self.webView];
 
@@ -269,9 +270,19 @@ jobs:
           }
 
           - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
-              // Tự động phát video và xóa các banner che màn hình
-              NSString *jsFix = @"var style = document.createElement('style'); style.innerHTML = 'video { object-fit: cover !important; width: 100% !important; height: 100% !important; }'; document.head.appendChild(style); var v = document.querySelector('video'); if(v){ v.muted = false; v.play(); }";
-              [webView evaluateJavaScript:jsFix completionHandler:nil];
+              // Ép trang web PC tự động thu nhỏ vừa khít độ rộng màn hình iPhone
+              NSString *jsFit = @"\
+              var meta = document.querySelector('meta[name=viewport]'); \
+              if (!meta) { \
+                  meta = document.createElement('meta'); \
+                  meta.name = 'viewport'; \
+                  document.getElementsByTagName('head')[0].appendChild(meta); \
+              } \
+              meta.content = 'width=1280, initial-scale=' + (screen.width / 1280) + ', maximum-scale=3.0, user-scalable=yes'; \
+              var v = document.querySelector('video'); \
+              if(v){ v.muted = false; v.play(); } \
+              ";
+              [webView evaluateJavaScript:jsFit completionHandler:nil];
           }
 
           @end
@@ -296,7 +307,7 @@ jobs:
           }
           EOF
 
-          # 3. Biên dịch chính xác với Clang
+          # 3. Biên dịch bằng Clang
           xcrun -sdk iphoneos clang -arch arm64 -fobjc-arc \
             -framework UIKit -framework Foundation -framework WebKit -framework CoreGraphics \
             main.m -o Payload/TikTokTool.app/TikTokTool
