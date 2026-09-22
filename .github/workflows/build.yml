@@ -51,7 +51,7 @@ jobs:
           </plist>
           EOF
 
-          # 2. Tạo mã nguồn Objective-C có lưu Persistent Cookie & Selector quét tin nhắn linh hoạt
+          # 2. Tạo mã nguồn Objective-C sửa triệt để lỗi biên dịch & hỗ trợ giữ Cookie + Auto Reply
           cat << 'EOF' > main.m
           #import <UIKit/UIKit.h>
           #import <WebKit/WebKit.h>
@@ -77,12 +77,12 @@ jobs:
               self.view.backgroundColor = [UIColor blackColor];
               self.isBotActive = NO;
 
-              // Bật Audio Session duy trì chạy ngầm ứng dụng khi khóa màn hình
+              // Bật Audio Session duy trì chạy ngầm ứng dụng
               NSError *error = nil;
               [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback error:&error];
               [[AVAudioSession sharedInstance] setActive:YES error:&error];
 
-              // Cấu hình Persistent Data Store để LƯU COOKIE & ĐĂNG NHẬP VĨNH VIỄN
+              // Cấu hình Persistent Data Store lưu Cookie đăng nhập vĩnh viễn
               WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
               config.websiteDataStore = [WKWebsiteDataStore defaultDataStore];
               config.allowsInlineMediaPlayback = YES;
@@ -92,12 +92,13 @@ jobs:
               self.webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
               self.webView.navigationDelegate = self;
               
-              // Mobile User-Agent tối ưu cho giao diện Messenger/Facebook
-              self.webView.customUserAgent = @"Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/605.1.15";
+              // Sử dụng Desktop User-Agent chuẩn để Messenger không bị chuyển hướng sai giao diện
+              self.webView.customUserAgent = @"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
               
               [self.view addSubview:self.webView];
 
-              NSURL *url = [NSURL URLWithString:@"https://www.facebook.com/messages/t/"];
+              // Tải Messenger Web chính thức
+              NSURL *url = [NSURL URLWithString:@"https://www.messenger.com/"];
               [self.webView loadRequest:[NSURLRequest requestWithURL:url]];
 
               [self setupFloatingMenu];
@@ -232,73 +233,66 @@ jobs:
 
           - (void)injectAndStartBot {
               NSString *msgText = [self.replyInput.text stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
+              msgText = [msgText stringByReplacingOccurrencesOfString:@"\"" withString:@"\\\""];
               
-              // Script JS quét đa tầng hỗ trợ cả giao diện Facebook Chat Widget lẫn Messenger Web
-              NSString *jsScript = [NSString stringWithFormat:@"\
-              (function() {\
-                  window.autoReplyText = '%@';\
-                  window.isBotRunning = true;\
-                  window.repliedUsers = window.repliedUsers || new Set();\
-                  \
-                  if (!document.getElementById('silent-audio-keepalive')) {\
-                      var audio = document.createElement('audio');\
-                      audio.id = 'silent-audio-keepalive';\
-                      audio.loop = true;\
-                      audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';\
-                      document.body.appendChild(audio);\
-                      audio.play().catch(function(e){});\
-                  }\
-                  \
-                  if (window.botInterval) clearInterval(window.botInterval);\
-                  \
-                  window.botInterval = setInterval(function() {\
-                      if (!window.isBotRunning) return;\
-                      \
-                      // 1. Quét danh sách hội thoại chưa đọc trên Messenger / FB Chat
-                      var unreadItems = document.querySelectorAll('[role=\"row\"][aria-label*=\"Unread\"], [role=\"row\"][aria-label*=\"Chưa đọc\"], div[aria-label*=\"chưa đọc\"]');\
-                      if (unreadItems.length > 0) {\
-                          var chat = unreadItems[0];\
-                          var userTitle = chat.innerText ? chat.innerText.split('\\n')[0] : 'Unknown';\
-                          \
-                          if (!window.repliedUsers.has(userTitle)) {\
-                              chat.click();\
-                              setTimeout(function() {\
-                                  var input = document.querySelector('div[role=\"textbox\"], textarea[name=\"message_body\"], p[class*=\"p_k32\"]');\
-                                  if (input) {\
-                                      input.focus();\
-                                      document.execCommand('insertText', false, window.autoReplyText);\
-                                      setTimeout(function() {\
-                                          var sendBtn = document.querySelector('div[aria-label=\"Press Enter to send\"], div[aria-label=\"Gửi\"], div[aria-label=\"Send\"], [type=\"submit\"]');\
-                                          if (sendBtn) {\
-                                              sendBtn.click();\
-                                          } else {\
-                                              var enterEvent = new KeyboardEvent('keydown', {key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true});\
-                                              input.dispatchEvent(enterEvent);\
-                                          }\
-                                          window.repliedUsers.add(userTitle);\
-                                      }, 1000);\
-                                  }\
-                              }, 1500);\
-                          }\
-                      } else {\
-                          // 2. Tự động kiểm tra ô chat đang mở trên Facebook Web
-                          var activeInput = document.querySelector('div[role=\"textbox\"]');\
-                          if (activeInput && activeInput.innerText.trim() === '') {\
-                              var titleHeader = document.querySelector('h2, [role=\"main\"] h1');\
-                              var currentChatName = titleHeader ? titleHeader.innerText : 'ActiveChat';\
-                              if (!window.repliedUsers.has(currentChatName)) {\
-                                  activeInput.focus();\
-                                  document.execCommand('insertText', false, window.autoReplyText);\
-                                  setTimeout(function() {\
-                                      var sendBtn = document.querySelector('div[aria-label=\"Press Enter to send\"], div[aria-label=\"Gửi\"], div[aria-label=\"Send\"]');\
-                                      if (sendBtn) sendBtn.click();\
-                                      window.repliedUsers.add(currentChatName);\
-                                  }, 1000);\
-                              }\
-                          }\
-                      }\
-                  }, 4000);\
-              })();", msgText];
+              // Chuỗi JS nối chuẩn Obj-C tránh lỗi Clang Compiler
+              NSString *jsScript = [NSString stringWithFormat:
+                  @"(function() {"
+                  @"    window.autoReplyText = '%@';"
+                  @"    window.isBotRunning = true;"
+                  @"    if (!window.repliedUsersList) {"
+                  @"        try {"
+                  @"            window.repliedUsersList = JSON.parse(localStorage.getItem('bot_replied_users') || '[]');"
+                  @"        } catch(e) { window.repliedUsersList = []; }"
+                  @"    }"
+                  @"    function markReplied(user) {"
+                  @"        if (!window.repliedUsersList.includes(user)) {"
+                  @"            window.repliedUsersList.push(user);"
+                  @"            localStorage.setItem('bot_replied_users', JSON.stringify(window.repliedUsersList));"
+                  @"        }"
+                  @"    }"
+                  @"    function isReplied(user) {"
+                  @"        return window.repliedUsersList.includes(user);"
+                  @"    }"
+                  @"    if (!document.getElementById('silent-audio-keepalive')) {"
+                  @"        var audio = document.createElement('audio');"
+                  @"        audio.id = 'silent-audio-keepalive';"
+                  @"        audio.loop = true;"
+                  @"        audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';"
+                  @"        document.body.appendChild(audio);"
+                  @"        audio.play().catch(function(e){});"
+                  @"    }"
+                  @"    if (window.botInterval) clearInterval(window.botInterval);"
+                  @"    window.botInterval = setInterval(function() {"
+                  @"        if (!window.isBotRunning) return;"
+                  @"        var unreadItems = document.querySelectorAll('[role=\"row\"][aria-label*=\"Unread\"], [role=\"row\"][aria-label*=\"Chưa đọc\"], [aria-label*=\"chưa đọc\"]');"
+                  @"        if (unreadItems.length > 0) {"
+                  @"            var chat = unreadItems[0];"
+                  @"            var userTitle = chat.innerText ? chat.innerText.split('\\n')[0] : 'Unknown';"
+                  @"            if (!isReplied(userTitle)) {"
+                  @"                chat.click();"
+                  @"                setTimeout(function() {"
+                  @"                    var input = document.querySelector('div[role=\"textbox\"], textarea[name=\"message_body\"]');"
+                  @"                    if (input) {"
+                  @"                        input.focus();"
+                  @"                        document.execCommand('insertText', false, window.autoReplyText);"
+                  @"                        input.dispatchEvent(new Event('input', { bubbles: true }));"
+                  @"                        setTimeout(function() {"
+                  @"                            var sendBtn = document.querySelector('div[aria-label=\"Press Enter to send\"], div[aria-label=\"Gửi\"], div[aria-label=\"Send\"], [type=\"submit\"]');"
+                  @"                            if (sendBtn) {"
+                  @"                                sendBtn.click();"
+                  @"                            } else {"
+                  @"                                var enterEvent = new KeyboardEvent('keydown', {key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true});"
+                  @"                                input.dispatchEvent(enterEvent);"
+                  @"                            }"
+                  @"                            markReplied(userTitle);"
+                  @"                        }, 1000);"
+                  @"                    }"
+                  @"                }, 1500);"
+                  @"            }"
+                  @"        }"
+                  @"    }, 4000);"
+                  @"})();", msgText];
 
               [self.webView evaluateJavaScript:jsScript completionHandler:nil];
           }
