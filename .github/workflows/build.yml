@@ -51,7 +51,7 @@ jobs:
           </plist>
           EOF
 
-          # 2. Tạo mã nguồn Objective-C tích hợp WebView + Menu nhập liệu + Engine tự động
+          # 2. Tạo mã nguồn Objective-C có lưu Persistent Cookie & Selector quét tin nhắn linh hoạt
           cat << 'EOF' > main.m
           #import <UIKit/UIKit.h>
           #import <WebKit/WebKit.h>
@@ -82,7 +82,9 @@ jobs:
               [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback error:&error];
               [[AVAudioSession sharedInstance] setActive:YES error:&error];
 
+              // Cấu hình Persistent Data Store để LƯU COOKIE & ĐĂNG NHẬP VĨNH VIỄN
               WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
+              config.websiteDataStore = [WKWebsiteDataStore defaultDataStore];
               config.allowsInlineMediaPlayback = YES;
               config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
 
@@ -90,12 +92,12 @@ jobs:
               self.webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
               self.webView.navigationDelegate = self;
               
-              // Sử dụng Desktop User-Agent để load bản Messenger Web đầy đủ
-              self.webView.customUserAgent = @"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15";
+              // Mobile User-Agent tối ưu cho giao diện Messenger/Facebook
+              self.webView.customUserAgent = @"Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/605.1.15";
               
               [self.view addSubview:self.webView];
 
-              NSURL *url = [NSURL URLWithString:@"https://www.messenger.com/"];
+              NSURL *url = [NSURL URLWithString:@"https://www.facebook.com/messages/t/"];
               [self.webView loadRequest:[NSURLRequest requestWithURL:url]];
 
               [self setupFloatingMenu];
@@ -231,6 +233,7 @@ jobs:
           - (void)injectAndStartBot {
               NSString *msgText = [self.replyInput.text stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
               
+              // Script JS quét đa tầng hỗ trợ cả giao diện Facebook Chat Widget lẫn Messenger Web
               NSString *jsScript = [NSString stringWithFormat:@"\
               (function() {\
                   window.autoReplyText = '%@';\
@@ -251,7 +254,8 @@ jobs:
                   window.botInterval = setInterval(function() {\
                       if (!window.isBotRunning) return;\
                       \
-                      var unreadItems = document.querySelectorAll('[role=\"row\"][aria-label*=\"Unread\"], [role=\"row\"][aria-label*=\"Chưa đọc\"]');\
+                      // 1. Quét danh sách hội thoại chưa đọc trên Messenger / FB Chat
+                      var unreadItems = document.querySelectorAll('[role=\"row\"][aria-label*=\"Unread\"], [role=\"row\"][aria-label*=\"Chưa đọc\"], div[aria-label*=\"chưa đọc\"]');\
                       if (unreadItems.length > 0) {\
                           var chat = unreadItems[0];\
                           var userTitle = chat.innerText ? chat.innerText.split('\\n')[0] : 'Unknown';\
@@ -259,12 +263,12 @@ jobs:
                           if (!window.repliedUsers.has(userTitle)) {\
                               chat.click();\
                               setTimeout(function() {\
-                                  var input = document.querySelector('div[role=\"textbox\"]');\
+                                  var input = document.querySelector('div[role=\"textbox\"], textarea[name=\"message_body\"], p[class*=\"p_k32\"]');\
                                   if (input) {\
                                       input.focus();\
                                       document.execCommand('insertText', false, window.autoReplyText);\
                                       setTimeout(function() {\
-                                          var sendBtn = document.querySelector('div[aria-label=\"Press Enter to send\"], div[aria-label=\"Gửi\"], div[aria-label=\"Send\"]');\
+                                          var sendBtn = document.querySelector('div[aria-label=\"Press Enter to send\"], div[aria-label=\"Gửi\"], div[aria-label=\"Send\"], [type=\"submit\"]');\
                                           if (sendBtn) {\
                                               sendBtn.click();\
                                           } else {\
@@ -276,6 +280,22 @@ jobs:
                                   }\
                               }, 1500);\
                           }\
+                      } else {\
+                          // 2. Tự động kiểm tra ô chat đang mở trên Facebook Web
+                          var activeInput = document.querySelector('div[role=\"textbox\"]');\
+                          if (activeInput && activeInput.innerText.trim() === '') {\
+                              var titleHeader = document.querySelector('h2, [role=\"main\"] h1');\
+                              var currentChatName = titleHeader ? titleHeader.innerText : 'ActiveChat';\
+                              if (!window.repliedUsers.has(currentChatName)) {\
+                                  activeInput.focus();\
+                                  document.execCommand('insertText', false, window.autoReplyText);\
+                                  setTimeout(function() {\
+                                      var sendBtn = document.querySelector('div[aria-label=\"Press Enter to send\"], div[aria-label=\"Gửi\"], div[aria-label=\"Send\"]');\
+                                      if (sendBtn) sendBtn.click();\
+                                      window.repliedUsers.add(currentChatName);\
+                                  }, 1000);\
+                              }\
+                          }\
                       }\
                   }, 4000);\
               })();", msgText];
@@ -284,17 +304,6 @@ jobs:
           }
 
           - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
-              NSString *jsFit = @"\
-              var meta = document.querySelector('meta[name=viewport]'); \
-              if (!meta) { \
-                  meta = document.createElement('meta'); \
-                  meta.name = 'viewport'; \
-                  document.getElementsByTagName('head')[0].appendChild(meta); \
-              } \
-              meta.content = 'width=1280, initial-scale=' + (screen.width / 1280) + ', maximum-scale=3.0, user-scalable=yes'; \
-              ";
-              [webView evaluateJavaScript:jsFit completionHandler:nil];
-              
               if (self.isBotActive) {
                   [self injectAndStartBot];
               }
@@ -318,7 +327,6 @@ jobs:
           @end
           #pragma clang diagnostic pop
 
-          // Hàm Main bắt buộc của ứng dụng iOS
           int main(int argc, char * argv[]) {
               @autoreleasepool {
                   return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
@@ -326,7 +334,7 @@ jobs:
           }
           EOF
 
-          # 3. Biên dịch đầy đủ bằng Clang
+          # 3. Biên dịch bằng Clang
           xcrun -sdk iphoneos clang -arch arm64 -fobjc-arc \
             -Wno-deprecated-declarations -Wno-error \
             -framework UIKit -framework Foundation -framework WebKit -framework CoreGraphics -framework AVFoundation \
