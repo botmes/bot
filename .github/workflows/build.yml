@@ -10,10 +10,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Azule via Curl
+      - name: Build insert_dylib Tool
         run: |
-          sudo curl -sL "https://raw.githubusercontent.com/Al45tair/Azule/main/azule" -o /usr/local/bin/azule
-          sudo chmod +x /usr/local/bin/azule
+          git clone https://github.com/Tyilo/insert_dylib.git
+          cd insert_dylib
+          clang -O2 main.c -o insert_dylib
+          sudo cp insert_dylib /usr/local/bin/insert_dylib
+          cd ..
 
       - name: Compile Mod Menu Dylib
         run: |
@@ -21,114 +24,150 @@ jobs:
           #import <UIKit/UIKit.h>
           #import <objc/runtime.h>
 
-          static BOOL g_BlockInterstitials = YES;
-          static BOOL g_AutoClaimRewards = YES;
+          // ---------------------------------------------------------
+          // CÔNG TẮC BẬT TẮT CHỨC NĂNG MOD
+          // ---------------------------------------------------------
+          static BOOL g_BlockInterstitials = YES; // Chặn QC kết thúc ván
+          static BOOL g_AutoClaimRewards = YES;   // Bỏ qua QC 30s nhận quà ngay
 
-          @interface ModMenuView : UIView
-          @property (nonatomic, strong) UIButton *toggleBtn;
-          @property (nonatomic, strong) UIView *panelView;
-          @property (nonatomic, assign) BOOL isExpanded;
+          // ---------------------------------------------------------
+          // GIAO DIỆN MENU RỜI (FLOATING MENU HUD)
+          // ---------------------------------------------------------
+          @interface ModMenuHUD : UIView
+          @property (nonatomic, strong) UIButton *btnIcon;
+          @property (nonatomic, strong) UIView *panelBox;
+          @property (nonatomic, assign) BOOL isOpen;
           @end
 
-          @implementation ModMenuView
+          @implementation ModMenuHUD
 
           - (instancetype)init {
               CGRect screen = [UIScreen mainScreen].bounds;
               self = [super initWithFrame:CGRectMake(20, screen.size.height / 3, 50, 50)];
               if (self) {
-                  self.isExpanded = NO;
+                  self.isOpen = NO;
 
-                  self.toggleBtn = [UIButton buttonWithType:UIButtonTypeCustom];
-                  self.toggleBtn.frame = CGRectMake(0, 0, 50, 50);
-                  self.toggleBtn.layer.cornerRadius = 25;
-                  self.toggleBtn.backgroundColor = [UIColor colorWithRed:0.35 green:0.10 blue:0.55 alpha:0.95];
-                  [self.toggleBtn setTitle:@"🐺" forState:UIControlStateNormal];
-                  self.toggleBtn.titleLabel.font = [UIFont systemFontOfSize:22];
-                  self.toggleBtn.layer.borderWidth = 1.5;
-                  self.toggleBtn.layer.borderColor = [UIColor systemCyanColor].CGColor;
-                  [self.toggleBtn addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
+                  // Nút Icon Tròn Nổi (Style Tím Neon)
+                  self.btnIcon = [UIButton buttonWithType:UIButtonTypeCustom];
+                  self.btnIcon.frame = CGRectMake(0, 0, 50, 50);
+                  self.btnIcon.layer.cornerRadius = 25;
+                  self.btnIcon.backgroundColor = [UIColor colorWithRed:0.30 green:0.10 blue:0.50 alpha:0.95];
+                  [self.btnIcon setTitle:@"🐺" forState:UIControlStateNormal];
+                  self.btnIcon.titleLabel.font = [UIFont systemFontOfSize:24];
+                  self.btnIcon.layer.borderWidth = 2.0;
+                  self.btnIcon.layer.borderColor = [UIColor systemCyanColor].CGColor;
+                  [self.btnIcon addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
 
-                  UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
-                  [self.toggleBtn addGestureRecognizer:pan];
-                  [self addSubview:self.toggleBtn];
+                  UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(onPan:)];
+                  [self.btnIcon addGestureRecognizer:pan];
+                  [self addSubview:self.btnIcon];
 
-                  self.panelView = [[UIView alloc] initWithFrame:CGRectMake(0, 55, 220, 130)];
-                  self.panelView.backgroundColor = [UIColor colorWithRed:0.08 green:0.08 blue:0.12 alpha:0.95];
-                  self.panelView.layer.cornerRadius = 12;
-                  self.panelView.layer.borderColor = [UIColor systemPurpleColor].CGColor;
-                  self.panelView.layer.borderWidth = 1.5;
-                  self.panelView.hidden = YES;
+                  // Bảng Menu Chức Năng
+                  self.panelBox = [[UIView alloc] initWithFrame:CGRectMake(0, 55, 230, 140)];
+                  self.panelBox.backgroundColor = [UIColor colorWithRed:0.08 green:0.08 blue:0.14 alpha:0.95];
+                  self.panelBox.layer.cornerRadius = 14;
+                  self.panelBox.layer.borderColor = [UIColor systemPurpleColor].CGColor;
+                  self.panelBox.layer.borderWidth = 1.5;
+                  self.panelBox.hidden = YES;
 
-                  UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(10, 8, 200, 20)];
-                  title.text = @"MOD LÀNG SÓI - ADBLOCK";
+                  UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(10, 8, 210, 20)];
+                  title.text = @"MENU LÀNG SÓI MOD VIP";
                   title.textColor = [UIColor systemCyanColor];
-                  title.font = [UIFont boldSystemFontOfSize:11];
+                  title.font = [UIFont boldSystemFontOfSize:12];
                   title.textAlignment = NSTextAlignmentCenter;
-                  [self.panelView addSubview:title];
+                  [self.panelBox addSubview:title];
 
-                  [self addSwitch:@"Chặn QC Cuối Ván" y:38 state:g_BlockInterstitials tag:101];
-                  [self addSwitch:@"Bỏ Qua QC Thưởng" y:78 state:g_AutoClaimRewards tag:102];
+                  [self createRow:@"Chặn QC Cuối Ván" y:38 state:g_BlockInterstitials tag:101];
+                  [self createRow:@"Nhận Quà QC 30s" y:80 state:g_AutoClaimRewards tag:102];
 
-                  [self addSubview:self.panelView];
+                  [self addSubview:self.panelBox];
               }
               return self;
           }
 
-          - (void)addSwitch:(NSString *)title y:(CGFloat)y state:(BOOL)state tag:(NSInteger)tag {
-              UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(10, y, 130, 30)];
+          - (void)createRow:(NSString *)title y:(CGFloat)y state:(BOOL)state tag:(NSInteger)tag {
+              UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(12, y, 140, 30)];
               lbl.text = title;
               lbl.textColor = [UIColor whiteColor];
               lbl.font = [UIFont systemFontOfSize:11 weight:UIFontWeightMedium];
-              [self.panelView addSubview:lbl];
+              [self.panelBox addSubview:lbl];
 
-              UISwitch *sw = [[UISwitch alloc] initWithFrame:CGRectMake(145, y, 0, 0)];
+              UISwitch *sw = [[UISwitch alloc] initWithFrame:CGRectMake(160, y, 0, 0)];
               sw.on = state;
-              sw.transform = CGAffineTransformMakeScale(0.7, 0.7);
+              sw.transform = CGAffineTransformMakeScale(0.75, 0.75);
               sw.tag = tag;
-              [sw addTarget:self action:@selector(switchChanged:) forControlEvents:UIControlEventValueChanged];
-              [self.panelView addSubview:sw];
+              [sw addTarget:self action:@selector(onSwitchChanged:) forControlEvents:UIControlEventValueChanged];
+              [self.panelBox addSubview:sw];
           }
 
-          - (void)switchChanged:(UISwitch *)sw {
+          - (void)onSwitchChanged:(UISwitch *)sw {
               if (sw.tag == 101) g_BlockInterstitials = sw.isOn;
               if (sw.tag == 102) g_AutoClaimRewards = sw.isOn;
           }
 
           - (void)toggleMenu {
-              self.isExpanded = !self.isExpanded;
-              self.panelView.hidden = !self.isExpanded;
+              self.isOpen = !self.isOpen;
+              self.panelBox.hidden = !self.isOpen;
               CGRect f = self.frame;
-              f.size.width = self.isExpanded ? 220 : 50;
-              f.size.height = self.isExpanded ? 190 : 50;
+              f.size.width = self.isOpen ? 230 : 50;
+              f.size.height = self.isOpen ? 200 : 50;
               self.frame = f;
           }
 
-          - (void)handlePan:(UIPanGestureRecognizer *)pan {
-              CGPoint trans = [pan translationInView:self.superview];
-              self.center = CGPointMake(self.center.x + trans.x, self.center.y + trans.y);
+          - (void)onPan:(UIPanGestureRecognizer *)pan {
+              CGPoint p = [pan translationInView:self.superview];
+              self.center = CGPointMake(self.center.x + p.x, self.center.y + p.y);
               [pan setTranslation:CGPointZero inView:self.superview];
           }
 
           @end
 
-          static void (*orig_presentViewController)(id, SEL, UIViewController *, BOOL, void (^)(void));
+          // ---------------------------------------------------------
+          // XỬ LÝ CHẶN QUẢNG CÁO VÀ NHẬN THƯỞNG TỰ ĐỘNG
+          // ---------------------------------------------------------
+          static void (*orig_presentVC)(id, SEL, UIViewController *, BOOL, void (^)(void));
 
-          void hk_presentViewController(UIViewController *self, SEL _cmd, UIViewController *vcToPresent, BOOL animated, void (^completion)(void)) {
-              NSString *className = NSStringFromClass([vcToPresent class]);
+          void hk_presentVC(UIViewController *self, SEL _cmd, UIViewController *vc, BOOL animated, void (^completion)(void)) {
+              if (!vc) {
+                  orig_presentVC(self, _cmd, vc, animated, completion);
+                  return;
+              }
 
-              BOOL isAdVC = [className containsString:@"Ad"] || 
-                            [className containsString:@"Unity"] || 
-                            [className containsString:@"GAD"] || 
-                            [className containsString:@"AL"] || 
-                            [className containsString:@"Vungle"];
+              NSString *cls = NSStringFromClass([vc class]);
+              BOOL isAdController = [cls containsString:@"Ad"] || 
+                                    [cls containsString:@"Unity"] || 
+                                    [cls containsString:@"GAD"] || 
+                                    [cls containsString:@"AppLovin"] || 
+                                    [cls containsString:@"IronSource"] || 
+                                    [cls containsString:@"Vungle"] || 
+                                    [cls containsString:@"Reward"];
 
-              if (isAdVC) {
+              if (isAdController) {
                   if (g_BlockInterstitials || g_AutoClaimRewards) {
-                      if (completion) completion();
-                      return;
+                      // Kích hoạt ngay completion callback để xác nhận xem xong
+                      if (completion) {
+                          completion();
+                      }
+
+                      // Tự động kích hoạt hàm nhận thưởng của Ad Delegate
+                      id delegate = nil;
+                      @try {
+                          delegate = [vc valueForKey:@"delegate"];
+                      } @catch (NSException *e) {}
+
+                      if (delegate) {
+                          SEL rewardSel = NSSelectorFromString(@"adDidEarnReward:");
+                          if ([delegate respondsToSelector:rewardSel]) {
+                              #pragma clang diagnostic push
+                              #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                              [delegate performSelector:rewardSel withObject:nil];
+                              #pragma clang diagnostic pop
+                          }
+                      }
+                      return; // Chặn hoàn toàn không cho hiển thị giao diện video quảng cáo!
                   }
               }
-              orig_presentViewController(self, _cmd, vcToPresent, animated, completion);
+              orig_presentVC(self, _cmd, vc, animated, completion);
           }
 
           static void (*orig_makeKeyAndVisible)(id, SEL);
@@ -137,35 +176,59 @@ jobs:
               static dispatch_once_t onceToken;
               dispatch_once(&onceToken, ^{
                   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                      ModMenuView *menu = [[ModMenuView alloc] init];
+                      ModMenuHUD *menu = [[ModMenuHUD alloc] init];
                       [self addSubview:menu];
                   });
               });
           }
 
           __attribute__((constructor))
-          static void init_mod() {
+          static void init_mod_entry() {
               Method m1 = class_getInstanceMethod([UIViewController class], @selector(presentViewController:animated:completion:));
-              orig_presentViewController = (void *)method_getImplementation(m1);
-              method_setImplementation(m1, (IMP)hk_presentViewController);
+              if (m1) {
+                  orig_presentVC = (void *)method_getImplementation(m1);
+                  method_setImplementation(m1, (IMP)hk_presentVC);
+              }
 
               Method m2 = class_getInstanceMethod([UIWindow class], @selector(makeKeyAndVisible));
-              orig_makeKeyAndVisible = (void *)method_getImplementation(m2);
-              method_setImplementation(m2, (IMP)hk_makeKeyAndVisible);
+              if (m2) {
+                  orig_makeKeyAndVisible = (void *)method_getImplementation(m2);
+                  method_setImplementation(m2, (IMP)hk_makeKeyAndVisible);
+              }
           }
           EOF
 
+          # Biên dịch thành thư viện Dylib cho iOS ARM64
           xcrun -sdk iphoneos clang -dynamiclib -arch arm64 -fobjc-arc -framework UIKit -framework Foundation ModLangSoi.m -o ModLangSoi.dylib
 
-      - name: Inject Dylib into IPA using Azule
+      - name: Process IPA and Inject Mod Dylib
         run: |
-          if [ ! -f "LangSoi.ipa" ]; then
-            echo "LỖI: Chưa tìm thấy file LangSoi.ipa ở thư mục gốc repo!"
-            echo "Vui lòng upload file file LangSoi.ipa gốc lên trước khi chạy."
+          IPA_FILE=$(ls *.ipa 2>/dev/null | head -n 1)
+          if [ -z "$IPA_FILE" ]; then
+            echo "---------------------------------------------------------"
+            echo "LỖI CHƯA CÓ FILE IPA TRONG REPOSITORY!"
+            echo "Bạn phải Upload file IPA gốc của game Làng Sói vào Repo."
+            echo "Ví dụ đặt tên là: LangSoi.ipa ở ngay ngoài thư mục chính."
+            echo "---------------------------------------------------------"
             exit 1
           fi
 
-          azule -i LangSoi.ipa -o LangSoi_Modded.ipa -f ModLangSoi.dylib
+          echo "Đang xử lý tệp IPA: $IPA_FILE"
+          unzip -q "$IPA_FILE" -d extracted_ipa
+
+          APP_PATH=$(ls -d extracted_ipa/Payload/*.app)
+          EXECUTABLE=$(defaults read "$APP_PATH/Info.plist" CFBundleExecutable)
+
+          # Copy Dylib vào App Package
+          cp ModLangSoi.dylib "$APP_PATH/"
+
+          # Tiêm Dylib vào Executable gốc
+          insert_dylib --inplace --no-strip-codesig "@executable_path/ModLangSoi.dylib" "$APP_PATH/$EXECUTABLE"
+
+          # Đóng gói lại IPA
+          cd extracted_ipa
+          zip -qr ../LangSoi_Modded.ipa Payload
+          cd ..
 
       - name: Upload Modded IPA Artifact
         uses: actions/upload-artifact@v4
