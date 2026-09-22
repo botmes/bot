@@ -2,6 +2,11 @@ name: Build Modded LangSoi IPA
 
 on:
   workflow_dispatch:
+    inputs:
+      ipa_url:
+        description: 'Dán link tải trực tiếp file LangSoi.ipa (nếu không upload vào repo)'
+        required: false
+        default: ''
 
 jobs:
   build:
@@ -24,15 +29,9 @@ jobs:
           #import <UIKit/UIKit.h>
           #import <objc/runtime.h>
 
-          // ---------------------------------------------------------
-          // CÔNG TẮC BẬT TẮT CHỨC NĂNG MOD
-          // ---------------------------------------------------------
-          static BOOL g_BlockInterstitials = YES; // Chặn QC kết thúc ván
-          static BOOL g_AutoClaimRewards = YES;   // Bỏ qua QC 30s nhận quà ngay
+          static BOOL g_BlockInterstitials = YES;
+          static BOOL g_AutoClaimRewards = YES;
 
-          // ---------------------------------------------------------
-          // GIAO DIỆN MENU RỜI (FLOATING MENU HUD)
-          // ---------------------------------------------------------
           @interface ModMenuHUD : UIView
           @property (nonatomic, strong) UIButton *btnIcon;
           @property (nonatomic, strong) UIView *panelBox;
@@ -47,7 +46,6 @@ jobs:
               if (self) {
                   self.isOpen = NO;
 
-                  // Nút Icon Tròn Nổi (Style Tím Neon)
                   self.btnIcon = [UIButton buttonWithType:UIButtonTypeCustom];
                   self.btnIcon.frame = CGRectMake(0, 0, 50, 50);
                   self.btnIcon.layer.cornerRadius = 25;
@@ -62,7 +60,6 @@ jobs:
                   [self.btnIcon addGestureRecognizer:pan];
                   [self addSubview:self.btnIcon];
 
-                  // Bảng Menu Chức Năng
                   self.panelBox = [[UIView alloc] initWithFrame:CGRectMake(0, 55, 230, 140)];
                   self.panelBox.backgroundColor = [UIColor colorWithRed:0.08 green:0.08 blue:0.14 alpha:0.95];
                   self.panelBox.layer.cornerRadius = 14;
@@ -122,9 +119,6 @@ jobs:
 
           @end
 
-          // ---------------------------------------------------------
-          // XỬ LÝ CHẶN QUẢNG CÁO VÀ NHẬN THƯỞNG TỰ ĐỘNG
-          // ---------------------------------------------------------
           static void (*orig_presentVC)(id, SEL, UIViewController *, BOOL, void (^)(void));
 
           void hk_presentVC(UIViewController *self, SEL _cmd, UIViewController *vc, BOOL animated, void (^completion)(void)) {
@@ -144,12 +138,10 @@ jobs:
 
               if (isAdController) {
                   if (g_BlockInterstitials || g_AutoClaimRewards) {
-                      // Kích hoạt ngay completion callback để xác nhận xem xong
                       if (completion) {
                           completion();
                       }
 
-                      // Tự động kích hoạt hàm nhận thưởng của Ad Delegate
                       id delegate = nil;
                       @try {
                           delegate = [vc valueForKey:@"delegate"];
@@ -164,7 +156,7 @@ jobs:
                               #pragma clang diagnostic pop
                           }
                       }
-                      return; // Chặn hoàn toàn không cho hiển thị giao diện video quảng cáo!
+                      return;
                   }
               }
               orig_presentVC(self, _cmd, vc, animated, completion);
@@ -198,17 +190,22 @@ jobs:
           }
           EOF
 
-          # Biên dịch thành thư viện Dylib cho iOS ARM64
           xcrun -sdk iphoneos clang -dynamiclib -arch arm64 -fobjc-arc -framework UIKit -framework Foundation ModLangSoi.m -o ModLangSoi.dylib
 
-      - name: Process IPA and Inject Mod Dylib
+      - name: Download & Process IPA
         run: |
+          URL="${{ github.event.inputs.ipa_url }}"
+          if [ -n "$URL" ]; then
+            echo "Đang tải tệp IPA từ URL..."
+            curl -L "$URL" -o LangSoi.ipa
+          fi
+
           IPA_FILE=$(ls *.ipa 2>/dev/null | head -n 1)
           if [ -z "$IPA_FILE" ]; then
             echo "---------------------------------------------------------"
-            echo "LỖI CHƯA CÓ FILE IPA TRONG REPOSITORY!"
-            echo "Bạn phải Upload file IPA gốc của game Làng Sói vào Repo."
-            echo "Ví dụ đặt tên là: LangSoi.ipa ở ngay ngoài thư mục chính."
+            echo "LỖI: KHÔNG CÓ FILE IPA NÀO!"
+            echo "Vui lòng nhập Link tải IPA vào ô khi bấm Run workflow"
+            echo "hoặc upload file .ipa lên repository."
             echo "---------------------------------------------------------"
             exit 1
           fi
@@ -219,13 +216,9 @@ jobs:
           APP_PATH=$(ls -d extracted_ipa/Payload/*.app)
           EXECUTABLE=$(defaults read "$APP_PATH/Info.plist" CFBundleExecutable)
 
-          # Copy Dylib vào App Package
           cp ModLangSoi.dylib "$APP_PATH/"
-
-          # Tiêm Dylib vào Executable gốc
           insert_dylib --inplace --no-strip-codesig "@executable_path/ModLangSoi.dylib" "$APP_PATH/$EXECUTABLE"
 
-          # Đóng gói lại IPA
           cd extracted_ipa
           zip -qr ../LangSoi_Modded.ipa Payload
           cd ..
