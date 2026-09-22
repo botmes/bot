@@ -1,4 +1,4 @@
-name: Build Facebook Messenger Auto Reply IPA
+name: Build Sunset Jet Racer 3D Game IPA
 
 on:
   workflow_dispatch:
@@ -10,321 +10,327 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Compile and Package IPA
+      - name: Compile and Package 3D Game IPA
         run: |
-          mkdir -p Payload/FBAutoTool.app
+          mkdir -p Payload/SunsetRacer.app
           
-          # 1. Tạo file Info.plist đăng ký quyền Chạy Ngầm Âm Thanh
-          cat << 'EOF' > Payload/FBAutoTool.app/Info.plist
+          # 1. Tạo file Info.plist cấu hình Xoay Ngang Màn Hình & Tối ưu iPhone 16 Pro
+          cat << 'EOF' > Payload/SunsetRacer.app/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
               <key>CFBundleIdentifier</key>
-              <string>com.devnvios.fbautoreply</string>
+              <string>com.devnvios.sunsetracer3d</string>
               <key>CFBundleName</key>
-              <string>FBAutoTool</string>
+              <string>SunsetRacer</string>
               <key>CFBundlePackageType</key>
               <string>APPL</string>
               <key>CFBundleExecutable</key>
-              <string>FBAutoTool</string>
+              <string>SunsetRacer</string>
               <key>CFBundleShortVersionString</key>
-              <string>1.0</string>
+              <string>2.0</string>
               <key>CFBundleVersion</key>
               <string>1</string>
               <key>LSRequiresIPhoneOS</key>
               <true/>
-              <key>UIBackgroundModes</key>
+              <key>UIRequiresFullScreen</key>
+              <true/>
+              <key>UIStatusBarHidden</key>
+              <true/>
+              <key>UISupportedInterfaceOrientations</key>
               <array>
-                  <string>audio</string>
+                  <string>UIInterfaceOrientationLandscapeRight</string>
+                  <string>UIInterfaceOrientationLandscapeLeft</string>
               </array>
-              <key>NSAppTransportSecurity</key>
-              <dict>
-                  <key>NSAllowsArbitraryLoads</key>
-                  <true/>
-              </dict>
               <key>UIRequiredDeviceCapabilities</key>
               <array>
                   <string>arm64</string>
+                  <string>metal</string>
               </array>
+              <key>CADisableMinimumFrameDurationOnPhone</key>
+              <true/>
           </dict>
           </plist>
           EOF
 
-          # 2. Tạo mã nguồn Objective-C (Bản sửa lỗi Desktop View, Block Redirect & JS Hoàn chỉnh)
+          # 2. Tạo Mã Nguồn Trò Chơi 3D Hoàng Hôn (SceneKit Native Objective-C)
           cat << 'EOF' > main.m
           #import <UIKit/UIKit.h>
-          #import <WebKit/WebKit.h>
-          #import <AVFoundation/AVFoundation.h>
+          #import <SceneKit/SceneKit.h>
+          #import <QuartzCore/QuartzCore.h>
 
-          @interface MainViewController : UIViewController <WKNavigationDelegate, UITextFieldDelegate>
-          @property (nonatomic, strong) WKWebView *webView;
-          @property (nonatomic, strong) UIView *floatingMenu;
-          @property (nonatomic, strong) UIView *contentContainer;
-          @property (nonatomic, strong) UITextField *replyInput;
-          @property (nonatomic, strong) UIButton *toggleBotBtn;
-          @property (nonatomic, strong) UIButton *minBtn;
-          @property (nonatomic, strong) UILabel *statusLabel;
-          @property (nonatomic, assign) CGPoint initialCenter;
-          @property (nonatomic, assign) BOOL isMinimized;
-          @property (nonatomic, assign) BOOL isBotActive;
+          @interface GameViewController : UIViewController <SCNSceneRendererDelegate>
+          @property (nonatomic, strong) SCNView *scnView;
+          @property (nonatomic, strong) SCNScene *scene;
+          @property (nonatomic, strong) SCNNode *shipNode;
+          @property (nonatomic, strong) NSMutableArray<SCNNode *> *rings;
+          @property (nonatomic, strong) UILabel *scoreLabel;
+          @property (nonatomic, strong) UILabel *speedLabel;
+          @property (nonatomic, assign) NSInteger score;
+          @property (nonatomic, assign) float currentSpeed;
+          @property (nonatomic, assign) CGPoint lastTouchPos;
           @end
 
-          @implementation MainViewController
+          @implementation GameViewController
+
+          - (BOOL)prefersStatusBarHidden { return YES; }
+          - (BOOL)prefersHomeIndicatorAutoHidden { return YES; }
+          - (UIInterfaceOrientationMask)supportedInterfaceOrientations {
+              return UIInterfaceOrientationMaskLandscape;
+          }
 
           - (void)viewDidLoad {
               [super viewDidLoad];
               self.view.backgroundColor = [UIColor blackColor];
-              self.isBotActive = NO;
+              self.score = 0;
+              self.currentSpeed = 1.2;
+              self.rings = [NSMutableArray array];
 
-              NSError *error = nil;
-              [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback error:&error];
-              [[AVAudioSession sharedInstance] setActive:YES error:&error];
+              // 1. Cấu hình SCNView cho iPhone 16 Pro (120Hz ProMotion & Anti-Aliasing)
+              self.scnView = [[SCNView alloc] initWithFrame:self.view.bounds];
+              self.scnView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+              self.scnView.rendersContinuously = YES;
+              self.scnView.preferredFramesPerSecond = 120; 
+              self.scnView.antialiasingMode = SCNAntialiasingModeMultisample4X;
+              self.scnView.delegate = self;
+              [self.view addSubview:self.scnView];
 
-              WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
-              config.websiteDataStore = [WKWebsiteDataStore defaultDataStore];
-              config.allowsInlineMediaPlayback = YES;
-              config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
+              // 2. Tạo Scene & Không gian bầu trời Hoàng Hôn (Sunset Skybox)
+              self.scene = [SCNScene scene];
+              self.scnView.scene = self.scene;
 
-              self.webView = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:config];
-              self.webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-              self.webView.navigationDelegate = self;
-              
-              // QUAN TRỌNG 1: Ép dùng Desktop User-Agent để Facebook hiện ô chat
-              self.webView.customUserAgent = @"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-              
-              [self.view addSubview:self.webView];
+              [self setupSunsetEnvironment];
+              [self setup3DPlayerShip];
+              [self setupCollectableRings];
+              [self setupCameraAndLighting];
+              [self setupFuturisticUI];
 
-              // Sử dụng tên miền messenger.com chuẩn của Desktop
-              NSURL *url = [NSURL URLWithString:@"https://www.messenger.com/"];
-              [self.webView loadRequest:[NSURLRequest requestWithURL:url]];
-
-              [self setupFloatingMenu];
-          }
-
-          // QUAN TRỌNG 2: Chặn văng app (Block URL Schemes)
-          - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
-              NSURL *url = navigationAction.request.URL;
-              NSString *scheme = url.scheme.lowercaseString;
-              NSString *absoluteURL = url.absoluteString.lowercaseString;
-              
-              // Chỉ cho phép tải link HTTP/HTTPS (chặn fb-messenger://, itms-apps://...)
-              if (![scheme isEqualToString:@"http"] && ![scheme isEqualToString:@"https"]) {
-                  decisionHandler(WKNavigationActionPolicyCancel);
-                  return;
-              }
-              
-              // Chặn các link trang cá nhân, story gây lỗi "Không xem được nội dung"
-              if ([absoluteURL containsString:@"/photo"] || 
-                  [absoluteURL containsString:@"/story"] || 
-                  [absoluteURL containsString:@"/profile.php"]) {
-                  decisionHandler(WKNavigationActionPolicyCancel);
-                  return;
-              }
-              
-              decisionHandler(WKNavigationActionPolicyAllow);
-          }
-
-          - (BOOL)prefersStatusBarHidden {
-              return YES;
-          }
-
-          - (void)setupFloatingMenu {
-              CGFloat menuW = 300;
-              CGFloat menuH = 220;
-              self.isMinimized = NO;
-              
-              self.floatingMenu = [[UIView alloc] initWithFrame:CGRectMake(20, 60, menuW, menuH)];
-              self.floatingMenu.backgroundColor = [[UIColor colorWithRed:0.1 green:0.1 blue:0.14 alpha:0.95] colorWithAlphaComponent:0.95];
-              self.floatingMenu.layer.cornerRadius = 14;
-              self.floatingMenu.layer.borderWidth = 1.5;
-              self.floatingMenu.layer.borderColor = [UIColor colorWithRed:0.0 green:0.5 blue:1.0 alpha:0.8].CGColor;
-              self.floatingMenu.clipsToBounds = YES;
-
+              // Thêm thao tác vuốt tay điều khiển
               UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
-              [self.floatingMenu addGestureRecognizer:pan];
-
-              UIView *headerView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, menuW, 36)];
-              headerView.backgroundColor = [UIColor colorWithRed:0.18 green:0.18 blue:0.22 alpha:1.0];
-              [self.floatingMenu addSubview:headerView];
-
-              UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(10, 0, menuW - 50, 36)];
-              title.text = @"🤖 MESSENGER AUTO REPLY";
-              title.textColor = [UIColor whiteColor];
-              title.font = [UIFont boldSystemFontOfSize:12];
-              [headerView addSubview:title];
-
-              self.minBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-              self.minBtn.frame = CGRectMake(menuW - 36, 0, 36, 36);
-              [self.minBtn setTitle:@"➖" forState:UIControlStateNormal];
-              [self.minBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-              [self.minBtn addTarget:self action:@selector(toggleMinimize) forControlEvents:UIControlEventTouchUpInside];
-              [headerView addSubview:self.minBtn];
-
-              self.contentContainer = [[UIView alloc] initWithFrame:CGRectMake(0, 36, menuW, menuH - 36)];
-              [self.floatingMenu addSubview:self.contentContainer];
-
-              UILabel *inputLabel = [[UILabel alloc] initWithFrame:CGRectMake(10, 8, menuW - 20, 18)];
-              inputLabel.text = @"Vui lòng nhập nội dung tự động:";
-              inputLabel.textColor = [UIColor lightGrayColor];
-              inputLabel.font = [UIFont systemFontOfSize:11 weight:UIFontWeightMedium];
-              [self.contentContainer addSubview:inputLabel];
-
-              self.replyInput = [[UITextField alloc] initWithFrame:CGRectMake(10, 28, menuW - 20, 36)];
-              self.replyInput.placeholder = @"VD: bot devnvios đang bận tí rep nhé";
-              self.replyInput.text = @"bot devnvios đang bận tí rep nhé";
-              self.replyInput.backgroundColor = [UIColor colorWithRed:0.2 green:0.2 blue:0.25 alpha:1.0];
-              self.replyInput.textColor = [UIColor whiteColor];
-              self.replyInput.font = [UIFont systemFontOfSize:12];
-              self.replyInput.layer.cornerRadius = 6;
-              self.replyInput.leftView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 8, 36)];
-              self.replyInput.leftViewMode = UITextFieldViewModeAlways;
-              self.replyInput.delegate = self;
-              [self.contentContainer addSubview:self.replyInput];
-
-              self.toggleBotBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-              self.toggleBotBtn.frame = CGRectMake(10, 72, menuW - 20, 38);
-              [self.toggleBotBtn setTitle:@"▶️ Bật Bot Auto Reply" forState:UIControlStateNormal];
-              [self.toggleBotBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-              self.toggleBotBtn.backgroundColor = [UIColor colorWithRed:0.0 green:0.6 blue:0.2 alpha:1.0];
-              self.toggleBotBtn.titleLabel.font = [UIFont boldSystemFontOfSize:13];
-              self.toggleBotBtn.layer.cornerRadius = 8;
-              [self.toggleBotBtn addTarget:self action:@selector(toggleBotState) forControlEvents:UIControlEventTouchUpInside];
-              [self.contentContainer addSubview:self.toggleBotBtn];
-
-              self.statusLabel = [[UILabel alloc] initWithFrame:CGRectMake(10, 118, menuW - 20, 50)];
-              self.statusLabel.text = @"Trạng thái: Đang TẮT\nĐăng nhập giao diện MÁY TÍNH để dùng bot.";
-              self.statusLabel.textColor = [UIColor systemOrangeColor];
-              self.statusLabel.font = [UIFont systemFontOfSize:11];
-              self.statusLabel.numberOfLines = 2;
-              self.statusLabel.textAlignment = NSTextAlignmentCenter;
-              [self.contentContainer addSubview:self.statusLabel];
-
-              [self.view addSubview:self.floatingMenu];
+              [self.scnView addGestureRecognizer:pan];
           }
 
-          - (BOOL)textFieldShouldReturn:(UITextField *)textField {
-              [textField resignFirstResponder];
-              return YES;
-          }
+          - (void)setupSunsetEnvironment {
+              // Vẽ Gradient bầu trời hoàng hôn cực nét
+              UIGraphicsBeginImageContextWithOptions(CGSizeMake(512, 1024), YES, 0);
+              CGContextRef ctx = UIGraphicsGetCurrentContext();
+              CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+              CGFloat locations[] = {0.0, 0.4, 0.65, 0.85, 1.0};
+              NSArray *colors = @[
+                  (__bridge id)[UIColor colorWithRed:0.05 green:0.02 blue:0.15 alpha:1.0].CGColor, // Đêm tím ngắt
+                  (__bridge id)[UIColor colorWithRed:0.55 green:0.12 blue:0.38 alpha:1.0].CGColor, // Tím hồng dải mây
+                  (__bridge id)[UIColor colorWithRed:0.95 green:0.35 blue:0.12 alpha:1.0].CGColor, // Cam hoàng hôn rực rỡ
+                  (__bridge id)[UIColor colorWithRed:1.00 green:0.70 blue:0.20 alpha:1.0].CGColor, // Vàng kim chân trời
+                  (__bridge id)[UIColor colorWithRed:0.08 green:0.08 blue:0.20 alpha:1.0].CGColor  // Mặt biển phản chiếu
+              ];
+              CGGradientRef gradient = CGGradientCreateWithColors(colorSpace, (__bridge CFArrayRef)colors, locations);
+              CGContextDrawLinearGradient(ctx, gradient, CGPointMake(0, 0), CGPointMake(0, 1024), 0);
+              UIImage *sunsetImage = UIGraphicsGetImageFromCurrentImageContext();
+              UIGraphicsEndImageContext();
+              CGGradientRelease(gradient);
+              CGColorSpaceRelease(colorSpace);
 
-          - (void)toggleMinimize {
-              self.isMinimized = !self.isMinimized;
-              [UIView animateWithDuration:0.25 animations:^{
-                  if (self.isMinimized) {
-                      self.floatingMenu.frame = CGRectMake(self.floatingMenu.frame.origin.x, self.floatingMenu.frame.origin.y, 60, 36);
-                      self.contentContainer.hidden = YES;
-                      [self.minBtn setTitle:@"🤖" forState:UIControlStateNormal];
-                  } else {
-                      self.floatingMenu.frame = CGRectMake(self.floatingMenu.frame.origin.x, self.floatingMenu.frame.origin.y, 300, 220);
-                      self.contentContainer.hidden = NO;
-                      [self.minBtn setTitle:@"➖" forState:UIControlStateNormal];
-                  }
-              }];
-          }
+              self.scene.background.contents = sunsetImage;
 
-          - (void)handlePan:(UIPanGestureRecognizer *)pan {
-              CGPoint translation = [pan translationInView:self.view];
-              if (pan.state == UIGestureRecognizerStateBegan) {
-                  self.initialCenter = self.floatingMenu.center;
-              }
-              if (pan.state == UIGestureRecognizerStateBegan || pan.state == UIGestureRecognizerStateChanged) {
-                  self.floatingMenu.center = CGPointMake(self.initialCenter.x + translation.x, self.initialCenter.y + translation.y);
-              }
-          }
+              // Sương mù hoàng hôn huyền ảo
+              self.scene.fogColor = [UIColor colorWithRed:0.90 green:0.40 blue:0.20 alpha:1.0];
+              self.scene.fogStartDistance = 120.0;
+              self.scene.fogEndDistance = 450.0;
 
-          - (void)toggleBotState {
-              self.isBotActive = !self.isBotActive;
-              if (self.isBotActive) {
-                  [self.toggleBotBtn setTitle:@"⏸️ Tắt Bot Auto Reply" forState:UIControlStateNormal];
-                  self.toggleBotBtn.backgroundColor = [UIColor colorWithRed:0.8 green:0.1 blue:0.2 alpha:1.0];
-                  self.statusLabel.text = @"🟢 Bot đang CHẠY NGẦM...\nSẽ tự động trả lời người mới nhắn.";
-                  self.statusLabel.textColor = [UIColor systemGreenColor];
-                  [self injectAndStartBot];
-              } else {
-                  [self.toggleBotBtn setTitle:@"▶️ Bật Bot Auto Reply" forState:UIControlStateNormal];
-                  self.toggleBotBtn.backgroundColor = [UIColor colorWithRed:0.0 green:0.6 blue:0.2 alpha:1.0];
-                  self.statusLabel.text = @"🔴 Bot đã TẮT.";
-                  self.statusLabel.textColor = [UIColor systemOrangeColor];
-                  
-                  NSString *stopJS = @"window.isBotRunning = false;";
-                  [self.webView evaluateJavaScript:stopJS completionHandler:nil];
-              }
-          }
-
-          // QUAN TRỌNG 3: Mã JavaScript gõ tin nhắn tự động đầy đủ không bị cắt
-          - (void)injectAndStartBot {
-              NSString *msgText = [self.replyInput.text stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
-              msgText = [msgText stringByReplacingOccurrencesOfString:@"\"" withString:@"\\\""];
+              // Mặt nước biển vô tận có tính chất phản chiếu ánh sáng (Metallic Ocean)
+              SCNPlane *waterGeo = [SCNPlane planeWithWidth:1200 height:2000];
+              waterGeo.firstMaterial.diffuse.contents = [UIColor colorWithRed:0.03 green:0.05 blue:0.12 alpha:1.0];
+              waterGeo.firstMaterial.specular.contents = [UIColor colorWithRed:1.0 green:0.6 blue:0.2 alpha:1.0];
+              waterGeo.firstMaterial.metalness.contents = @0.85;
+              waterGeo.firstMaterial.roughness.contents = @0.15;
               
-              NSString *jsScript = [NSString stringWithFormat:
-                  @"(function() {"
-                  @"    window.autoReplyText = '%@';"
-                  @"    window.isBotRunning = true;"
-                  @"    function getReplied() {"
-                  @"        try { return JSON.parse(localStorage.getItem('bot_replied_desktop') || '[]'); }"
-                  @"        catch(e) { return []; }"
-                  @"    }"
-                  @"    function addReplied(name) {"
-                  @"        var list = getReplied();"
-                  @"        if (name && !list.includes(name)) {"
-                  @"            list.push(name);"
-                  @"            localStorage.setItem('bot_replied_desktop', JSON.stringify(list));"
-                  @"        }"
-                  @"    }"
-                  @"    if (!document.getElementById('silent-audio-keepalive')) {"
-                  @"        var audio = document.createElement('audio');"
-                  @"        audio.id = 'silent-audio-keepalive';"
-                  @"        audio.loop = true;"
-                  @"        audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';"
-                  @"        document.body.appendChild(audio);"
-                  @"        audio.play().catch(function(e){});"
-                  @"    }"
-                  @"    if (window.botInterval) clearInterval(window.botInterval);"
-                  @"    window.botInterval = setInterval(function() {"
-                  @"        if (!window.isBotRunning) return;"
-                  @"        var unreadEls = document.querySelectorAll('[aria-label*=\"Chưa đọc\"], [aria-label*=\"Unread\"], [role=\"row\"] [style*=\"font-weight: 600\"]');"
-                  @"        for (var i = 0; i < unreadEls.length; i++) {"
-                  @"            var row = unreadEls[i].closest('[role=\"row\"]');"
-                  @"            if (row) {"
-                  @"                var nameEl = row.querySelector('span[dir=\"auto\"]');"
-                  @"                var userName = nameEl ? nameEl.innerText.trim() : 'Unknown';"
-                  @"                if (userName !== 'Unknown' && !getReplied().includes(userName)) {"
-                  @"                    row.click();"
-                  @"                    break;"
-                  @"                }"
-                  @"            }"
-                  @"        }"
-                  @"        var input = document.querySelector('div[role=\"textbox\"][contenteditable=\"true\"]');"
-                  @"        if (input) {"
-                  @"            var header = document.querySelector('div[role=\"main\"] span[dir=\"auto\"]');"
-                  @"            var currentName = header ? header.innerText.trim() : 'Unknown';"
-                  @"            if (currentName !== 'Unknown' && !getReplied().includes(currentName)) {"
-                  @"                input.focus();"
-                  @"                document.execCommand('insertText', false, window.autoReplyText);"
-                  @"                input.dispatchEvent(new Event('input', { bubbles: true }));"
-                  @"                setTimeout(function() {"
-                  @"                    var sendBtn = document.querySelector('div[aria-label=\"Press Enter to send\"], div[aria-label=\"Gửi\"], div[aria-label=\"Send\"]');"
-                  @"                    if (sendBtn) {"
-                  @"                        sendBtn.click();"
-                  @"                    } else {"
-                  @"                        var enterEv = new KeyboardEvent('keydown', {key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true});"
-                  @"                        input.dispatchEvent(enterEv);"
-                  @"                    }"
-                  @"                    addReplied(currentName);"
-                  @"                }, 1000);"
-                  @"            }"
-                  @"        }"
-                  @"    }, 4000);"
-                  @"})();", msgText];
-
-              [self.webView evaluateJavaScript:jsScript completionHandler:nil];
+              SCNNode *waterNode = [SCNNode nodeWithGeometry:waterGeo];
+              waterNode.position = SCNVector3Make(0, -18, -600);
+              waterNode.eulerAngles = SCNVector3Make(-M_PI_2, 0, 0);
+              [self.scene.rootNode addChildNode:waterNode];
           }
 
-          - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
-              if (self.isBotActive) {
-                  [self injectAndStartBot];
+          - (void)setupCameraAndLighting {
+              // Camera theo sau phi thuyền
+              SCNNode *cameraNode = [SCNNode node];
+              cameraNode.camera = [SCNCamera camera];
+              cameraNode.camera.zFar = 600;
+              cameraNode.position = SCNVector3Make(0, 4, 12);
+              [self.scene.rootNode addChildNode:cameraNode];
+
+              // Ánh sáng Mặt Trời Hoàng Hôn (Directional Sunset Light)
+              SCNNode *sunLight = [SCNNode node];
+              sunLight.light = [SCNLight light];
+              sunLight.light.type = SCNLightTypeDirectional;
+              sunLight.light.color = [UIColor colorWithRed:1.0 green:0.55 blue:0.25 alpha:1.0];
+              sunLight.light.intensity = 2200;
+              sunLight.light.castsShadow = YES;
+              sunLight.eulerAngles = SCNVector3Make(-M_PI / 14, M_PI, 0);
+              [self.scene.rootNode addChildNode:sunLight];
+
+              // Quả cầu Mặt Trời cực lớn ở chân trời
+              SCNNode *sunMesh = [SCNNode nodeWithGeometry:[SCNSphere sphereWithRadius:25.0]];
+              sunMesh.geometry.firstMaterial.diffuse.contents = [UIColor colorWithRed:1.0 green:0.85 blue:0.3 alpha:1.0];
+              sunMesh.geometry.firstMaterial.emission.contents = [UIColor colorWithRed:1.0 green:0.45 blue:0.1 alpha:1.0];
+              sunMesh.position = SCNVector3Make(0, 12, -400);
+              [self.scene.rootNode addChildNode:sunMesh];
+
+              // Ánh sáng môi trường mềm
+              SCNNode *ambientLight = [SCNNode node];
+              ambientLight.light = [SCNLight light];
+              ambientLight.light.type = SCNLightTypeAmbient;
+              ambientLight.light.color = [UIColor colorWithRed:0.3 green:0.15 blue:0.35 alpha:1.0];
+              ambientLight.light.intensity = 700;
+              [self.scene.rootNode addChildNode:ambientLight];
+          }
+
+          - (void)setup3DPlayerShip {
+              self.shipNode = [SCNNode node];
+
+              // Thân phi thuyền (Futuristic Jet Body)
+              SCNCone *bodyGeo = [SCNCone coneWithTopRadius:0.0 bottomRadius:1.1 height:5.5];
+              bodyGeo.firstMaterial.diffuse.contents = [UIColor colorWithRed:0.1 green:0.1 blue:0.12 alpha:1.0];
+              bodyGeo.firstMaterial.metalness.contents = @0.95;
+              bodyGeo.firstMaterial.roughness.contents = @0.1;
+              SCNNode *body = [SCNNode nodeWithGeometry:bodyGeo];
+              body.eulerAngles = SCNVector3Make(M_PI_2, 0, 0);
+              [self.shipNode addChildNode:body];
+
+              // Cánh phi thuyền kiểu tiêm kích
+              SCNBox *wingGeo = [SCNBox boxWithWidth:7.5 height:0.08 length:2.2 chamferRadius:0.04];
+              wingGeo.firstMaterial.diffuse.contents = [UIColor colorWithRed:0.9 green:0.15 blue:0.15 alpha:1.0];
+              wingGeo.firstMaterial.metalness.contents = @0.8;
+              SCNNode *wing = [SCNNode nodeWithGeometry:wingGeo];
+              wing.position = SCNVector3Make(0, 0, 0.6);
+              [self.shipNode addChildNode:wing];
+
+              // Buồng lái kính phản quang xanh neon (Neon Cockpit)
+              SCNSphere *glassGeo = [SCNSphere sphereWithRadius:0.65];
+              glassGeo.firstMaterial.diffuse.contents = [UIColor colorWithRed:0.0 green:0.8 blue:1.0 alpha:0.8];
+              glassGeo.firstMaterial.emission.contents = [UIColor colorWithRed:0.0 green:0.6 blue:0.9 alpha:1.0];
+              SCNNode *glass = [SCNNode nodeWithGeometry:glassGeo];
+              glass.scale = SCNVector3Make(0.7, 0.55, 1.8);
+              glass.position = SCNVector3Make(0, 0.45, -0.4);
+              [self.shipNode addChildNode:glass];
+
+              // Động cơ Lửa phản lực phía sau
+              SCNCylinder *engineGeo = [SCNCylinder cylinderWithRadius:0.45 height:0.2];
+              engineGeo.firstMaterial.emission.contents = [UIColor colorWithRed:1.0 green:0.5 blue:0.0 alpha:1.0];
+              SCNNode *engine = [SCNNode nodeWithGeometry:engineGeo];
+              engine.eulerAngles = SCNVector3Make(M_PI_2, 0, 0);
+              engine.position = SCNVector3Make(0, 0, 2.8);
+              [self.shipNode addChildNode:engine];
+
+              self.shipNode.position = SCNVector3Make(0, 0, 0);
+              [self.scene.rootNode addChildNode:self.shipNode];
+          }
+
+          - (void)setupCollectableRings {
+              for (int i = 0; i < 7; i++) {
+                  SCNNode *ring = [self createNeonRing];
+                  float randomX = ((float)arc4random() / UINT32_MAX) * 24.0 - 12.0;
+                  float randomY = ((float)arc4random() / UINT32_MAX) * 12.0 - 4.0;
+                  ring.position = SCNVector3Make(randomX, randomY, -60.0 - (i * 45.0));
+                  [self.scene.rootNode addChildNode:ring];
+                  [self.rings addObject:ring];
               }
+          }
+
+          - (SCNNode *)createNeonRing {
+              SCNTorus *torus = [SCNTorus torusWithRingRadius:3.2 pipeRadius:0.18];
+              torus.firstMaterial.diffuse.contents = [UIColor colorWithRed:1.0 green:0.6 blue:0.0 alpha:1.0];
+              torus.firstMaterial.emission.contents = [UIColor colorWithRed:1.0 green:0.4 blue:0.0 alpha:1.0];
+              SCNNode *ringNode = [SCNNode nodeWithGeometry:torus];
+              
+              // Xoay vòng tròn liên tục
+              CABasicAnimation *spin = [CABasicAnimation animationWithKeyPath:@"rotation"];
+              spin.toValue = [NSValue valueWithSCNVector4:SCNVector4Make(0, 0, 1, M_PI * 2)];
+              spin.duration = 3.0;
+              spin.repeatCount = HUGE_VALF;
+              [ringNode addAnimation:spin forKey:@"spin"];
+              return ringNode;
+          }
+
+          - (void)setupFuturisticUI {
+              // Bảng điểm Neon góc trên bên trái
+              self.scoreLabel = [[UILabel alloc] initWithFrame:CGRectMake(50, 20, 300, 40)];
+              self.scoreLabel.text = @"SCORE: 0000";
+              self.scoreLabel.textColor = [UIColor colorWithRed:0.0 green:1.0 blue:0.8 alpha:1.0];
+              self.scoreLabel.font = [UIFont fontWithName:@"HelveticaNeue-Bold" size:22];
+              self.scoreLabel.layer.shadowColor = [UIColor colorWithRed:0.0 green:1.0 blue:0.8 alpha:0.8].CGColor;
+              self.scoreLabel.layer.shadowOffset = CGSizeZero;
+              self.scoreLabel.layer.shadowRadius = 8;
+              self.scoreLabel.layer.shadowOpacity = 1.0;
+              [self.view addSubview:self.scoreLabel];
+
+              // Tốc độ góc trên bên phải
+              self.speedLabel = [[UILabel alloc] initWithFrame:CGRectMake(self.view.bounds.size.width - 250, 20, 200, 40)];
+              self.speedLabel.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
+              self.speedLabel.textAlignment = NSTextAlignmentRight;
+              self.speedLabel.text = @"SPEED: 850 KM/H";
+              self.speedLabel.textColor = [UIColor colorWithRed:1.0 green:0.6 blue:0.0 alpha:1.0];
+              self.speedLabel.font = [UIFont fontWithName:@"HelveticaNeue-Bold" size:18];
+              [self.view addSubview:self.speedLabel];
+          }
+
+          // Cảm ứng điều khiển nghiêng & di chuyển phi thuyền
+          - (void)handlePan:(UIPanGestureRecognizer *)pan {
+              CGPoint translation = [pan translationInView:self.scnView];
+              if (pan.state == UIGestureRecognizerStateChanged) {
+                  float newX = self.shipNode.position.x + (translation.x * 0.035);
+                  float newY = self.shipNode.position.y - (translation.y * 0.035);
+
+                  // Giới hạn phạm vi bay
+                  newX = MAX(-16.0, MIN(16.0, newX));
+                  newY = MAX(-6.0, MIN(14.0, newY));
+
+                  self.shipNode.position = SCNVector3Make(newX, newY, self.shipNode.position.z);
+
+                  // Hiệu ứng nghiêng phi thuyền (Banking Animation)
+                  self.shipNode.eulerAngles = SCNVector3Make(translation.y * -0.01, 0, translation.x * -0.02);
+                  [pan setTranslation:CGPointZero inView:self.scnView];
+              } else if (pan.state == UIGestureRecognizerStateEnded) {
+                  [UIView animateWithDuration:0.4 animations:^{
+                      self.shipNode.eulerAngles = SCNVector3Make(0, 0, 0);
+                  }];
+              }
+          }
+
+          // Vòng lặp cập nhật Game 120 FPS
+          - (void)renderer:(id<SCNSceneRenderer>)renderer updateAtTime:(NSTimeInterval)time {
+              // Di chuyển các vòng tròn về phía phi thuyền
+              for (SCNNode *ring in self.rings) {
+                  SCNVector3 pos = ring.position;
+                  pos.z += self.currentSpeed;
+
+                  // Kiểm tra va chạm (Thu thập vòng điểm)
+                  float dx = pos.x - self.shipNode.position.x;
+                  float dy = pos.y - self.shipNode.position.y;
+                  float dist = sqrt(dx*dx + dy*dy);
+
+                  if (pos.z > -2.0 && pos.z < 2.0 && dist < 3.5) {
+                      // Thu thập thành công!
+                      self.score += 100;
+                      dispatch_async(dispatch_get_main_queue(), ^{
+                          self.scoreLabel.text = [NSString stringWithFormat:@"SCORE: %04ld", (long)self.score];
+                      });
+
+                      // Reset vòng ra phía xa
+                      pos.z = -300.0;
+                      pos.x = ((float)arc4random() / UINT32_MAX) * 28.0 - 14.0;
+                      pos.y = ((float)arc4random() / UINT32_MAX) * 12.0 - 4.0;
+                  } else if (pos.z > 15.0) {
+                      // Trôi quá màn hình -> Đặt lại ra xa
+                      pos.z = -300.0;
+                      pos.x = ((float)arc4random() / UINT32_MAX) * 28.0 - 14.0;
+                      pos.y = ((float)arc4random() / UINT32_MAX) * 12.0 - 4.0;
+                  }
+                  ring.position = pos;
+              }
+
+              // Tang tốc độ dần theo thời gian
+              self.currentSpeed += 0.0001;
           }
 
           @end
@@ -333,17 +339,14 @@ jobs:
           @property (strong, nonatomic) UIWindow *window;
           @end
 
-          #pragma clang diagnostic push
-          #pragma clang diagnostic ignored "-Wdeprecated-declarations"
           @implementation AppDelegate
           - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
               self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
-              self.window.rootViewController = [[MainViewController alloc] init];
+              self.window.rootViewController = [[GameViewController alloc] init];
               [self.window makeKeyAndVisible];
               return YES;
           }
           @end
-          #pragma clang diagnostic pop
 
           int main(int argc, char * argv[]) {
               @autoreleasepool {
@@ -352,17 +355,17 @@ jobs:
           }
           EOF
 
-          # 3. Biên dịch bằng Clang
+          # 3. Biên dịch game bằng Clang với đầy đủ 3D Frameworks
           xcrun -sdk iphoneos clang -arch arm64 -fobjc-arc \
             -Wno-deprecated-declarations -Wno-error \
-            -framework UIKit -framework Foundation -framework WebKit -framework CoreGraphics -framework AVFoundation \
-            main.m -o Payload/FBAutoTool.app/FBAutoTool
+            -framework UIKit -framework Foundation -framework SceneKit -framework QuartzCore -framework CoreGraphics -framework AVFoundation \
+            main.m -o Payload/SunsetRacer.app/SunsetRacer
 
-          # 4. Đóng gói file IPA
-          zip -r FBAutoTool.ipa Payload
+          # 4. Đóng gói thành file SunsetRacer.ipa
+          zip -r SunsetRacer.ipa Payload
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FBAutoTool-IPA
-          path: FBAutoTool.ipa
+          name: SunsetRacer-3D-IPA
+          path: SunsetRacer.ipa
