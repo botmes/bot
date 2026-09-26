@@ -1,4 +1,4 @@
-name: Build Love Thuy Mid Autumn IPA
+name: Build Flappy Cube Game IPA
 
 on:
   workflow_dispatch:
@@ -10,371 +10,200 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Compile and Package App IPA
+      - name: Compile Game and Package IPA
         run: |
-          mkdir -p Payload/SunsetRacer.app
+          mkdir -p Payload/FlappyCube.app
 
-          # 1. Tạo Info.plist chuẩn iOS Màn Hình Ngang & Full Screen
+          # 1. Tạo Info.plist cho Game
           python3 -c "
           import plistlib
           plist = {
               'CFBundleDevelopmentRegion': 'en',
-              'CFBundleExecutable': 'SunsetRacer',
-              'CFBundleIdentifier': 'com.devnvios.lovethuy',
+              'CFBundleExecutable': 'FlappyCube',
+              'CFBundleIdentifier': 'com.studio.flappycube',
               'CFBundleInfoDictionaryVersion': '6.0',
-              'CFBundleName': 'Love Thùy',
+              'CFBundleName': 'Flappy Cube',
               'CFBundlePackageType': 'APPL',
-              'CFBundleShortVersionString': '2.0',
-              'CFBundleVersion': '2',
+              'CFBundleShortVersionString': '1.0',
+              'CFBundleVersion': '1',
               'LSRequiresIPhoneOS': True,
               'UIRequiresFullScreen': True,
               'UIStatusBarHidden': True,
               'UILaunchScreen': {},
               'UISupportedInterfaceOrientations': [
-                  'UIInterfaceOrientationLandscapeRight',
-                  'UIInterfaceOrientationLandscapeLeft'
+                  'UIInterfaceOrientationPortrait'
               ],
               'UIRequiredDeviceCapabilities': ['arm64'],
               'CADisableMinimumFrameDurationOnPhone': True
           }
-          with open('Payload/SunsetRacer.app/Info.plist', 'wb') as f:
+          with open('Payload/FlappyCube.app/Info.plist', 'wb') as f:
               plistlib.dump(plist, f, fmt=plistlib.FMT_BINARY)
           "
 
-          printf "APPL????" > Payload/SunsetRacer.app/PkgInfo
+          printf "APPL????" > Payload/FlappyCube.app/PkgInfo
 
-          # 2. Mã Nguồn Cải Tiến: Trái Tim Hồng To Chuẩn ♥️ & Lồng Đèn Đêm Trung Thu
+          # 2. Mã nguồn Objective-C hoàn chỉnh của Game (Flappy Cube)
           cat << 'ENDOFCODE' > main.m
           #import <UIKit/UIKit.h>
-          #import <QuartzCore/QuartzCore.h>
-          #import <math.h>
 
-          @interface MasterpieceViewController : UIViewController
-          @property (nonatomic, strong) CAShapeLayer *heartLayer;
-          @property (nonatomic, strong) CAShapeLayer *textLayer;
-          @property (nonatomic, strong) CAShapeLayer *lanternLayer;
-          @property (nonatomic, strong) UIView *magicPenContainer;
-          @property (nonatomic, strong) CAEmitterLayer *floatingLanternsEmitter;
-          @property (nonatomic, strong) UILabel *thuyTitleLabel;
-          @property (nonatomic, strong) UILabel *subTitleLabel;
-          @property (nonatomic, assign) BOOL isSceneReady;
+          @interface GameViewController : UIViewController
+          @property (strong, nonatomic) UIView *player;
+          @property (strong, nonatomic) NSMutableArray<UIView *> *obstacles;
+          @property (strong, nonatomic) CADisplayLink *gameTimer;
+          @property (strong, nonatomic) UILabel *scoreLabel;
+          @property (strong, nonatomic) UILabel *startLabel;
+          
+          @property (assign, nonatomic) CGFloat playerVelocity;
+          @property (assign, nonatomic) NSInteger score;
+          @property (assign, nonatomic) BOOL isGameRunning;
           @end
 
-          @implementation MasterpieceViewController
+          @implementation GameViewController
 
           - (BOOL)prefersStatusBarHidden { return YES; }
-          - (BOOL)prefersHomeIndicatorAutoHidden { return YES; }
-          - (UIInterfaceOrientationMask)supportedInterfaceOrientations {
-              return UIInterfaceOrientationMaskLandscape;
-          }
 
           - (void)viewDidLoad {
               [super viewDidLoad];
-              // Nền bầu trời đêm Trung Thu huyền ảo
-              self.view.backgroundColor = [UIColor colorWithRed:0.03 green:0.02 blue:0.08 alpha:1.0];
-          }
-
-          - (void)viewDidLayoutSubviews {
-              [super viewDidLayoutSubviews];
-              if (!self.isSceneReady && self.view.bounds.size.width > self.view.bounds.size.height) {
-                  self.isSceneReady = YES;
-                  [self setupMasterpieceScene];
-              }
-          }
-
-          - (void)setupMasterpieceScene {
-              CGFloat w = self.view.bounds.size.width;
-              CGFloat h = self.view.bounds.size.height;
-
-              // 1. Mặt Trăng Rằm Tròn Vàng Ấm
-              [self createMoonAndStarsWidth:w height:h];
-
-              // 2. Tạo Đường Vẽ 1: Trái Tim Màu Hồng To Chuẩn Dạng ♥️
-              UIBezierPath *heartPath = [UIBezierPath bezierPath];
-              CGFloat hx = w * 0.28, hy = h * 0.48;
-              CGFloat s = 1.45; // Kích thước trái tim phóng to đẹp mắt
-
-              [heartPath moveToPoint:CGPointMake(hx, hy - 30 * s)];
-              [heartPath addCurveToPoint:CGPointMake(hx - 100 * s, hy - 100 * s)
-                           controlPoint1:CGPointMake(hx - 50 * s, hy - 110 * s)
-                           controlPoint2:CGPointMake(hx - 100 * s, hy - 80 * s)];
-              [heartPath addCurveToPoint:CGPointMake(hx, hy + 100 * s)
-                           controlPoint1:CGPointMake(hx - 100 * s, hy + 20 * s)
-                           controlPoint2:CGPointMake(hx - 30 * s, hy + 65 * s)];
-              [heartPath addCurveToPoint:CGPointMake(hx + 100 * s, hy - 100 * s)
-                           controlPoint1:CGPointMake(hx + 30 * s, hy + 65 * s)
-                           controlPoint2:CGPointMake(hx + 100 * s, hy + 20 * s)];
-              [heartPath addCurveToPoint:CGPointMake(hx, hy - 30 * s)
-                           controlPoint1:CGPointMake(hx + 100 * s, hy - 80 * s)
-                           controlPoint2:CGPointMake(hx + 50 * s, hy - 110 * s)];
-              [heartPath closePath];
-
-              self.heartLayer = [CAShapeLayer layer];
-              self.heartLayer.path = heartPath.CGPath;
-              self.heartLayer.strokeColor = [UIColor colorWithRed:1.0 green:0.35 blue:0.75 alpha:1.0].CGColor;
-              self.heartLayer.fillColor = [UIColor colorWithRed:1.0 green:0.35 blue:0.75 alpha:0.22].CGColor;
-              self.heartLayer.lineWidth = 6.5;
-              self.heartLayer.lineCap = kCALineCapRound;
-              self.heartLayer.lineJoin = kCALineJoinRound;
-              self.heartLayer.strokeEnd = 0.0;
-              self.heartLayer.shadowColor = [UIColor colorWithRed:1.0 green:0.2 blue:0.65 alpha:1.0].CGColor;
-              self.heartLayer.shadowRadius = 25;
-              self.heartLayer.shadowOpacity = 1.0;
-              self.heartLayer.shadowOffset = CGSizeZero;
-              [self.view.layer addSublayer:self.heartLayer];
-
-              // 3. Tạo Đường Vẽ 2: Chữ "love Thùy" uốn lượn
-              UIBezierPath *textPath = [UIBezierPath bezierPath];
-              CGFloat tx = w * 0.28, ty = h * 0.48;
-              [textPath moveToPoint:CGPointMake(tx - 65, ty + 10)];
-              [textPath addCurveToPoint:CGPointMake(tx - 55, ty - 35) controlPoint1:CGPointMake(tx - 65, ty - 25) controlPoint2:CGPointMake(tx - 55, ty - 35)];
-              [textPath addCurveToPoint:CGPointMake(tx - 50, ty + 10) controlPoint1:CGPointMake(tx - 55, ty) controlPoint2:CGPointMake(tx - 50, ty + 10)];
-              [textPath addCurveToPoint:CGPointMake(tx - 30, ty + 10) controlPoint1:CGPointMake(tx - 45, ty - 10) controlPoint2:CGPointMake(tx - 35, ty - 10)];
-              [textPath addCurveToPoint:CGPointMake(tx - 10, ty + 10) controlPoint1:CGPointMake(tx - 25, ty + 20) controlPoint2:CGPointMake(tx - 15, ty + 20)];
-              [textPath addCurveToPoint:CGPointMake(tx + 10, ty + 10) controlPoint1:CGPointMake(tx - 5, ty - 10) controlPoint2:CGPointMake(tx + 5, ty - 10)];
-              [textPath moveToPoint:CGPointMake(tx + 25, ty - 25)];
-              [textPath addLineToPoint:CGPointMake(tx + 55, ty - 25)];
-              [textPath moveToPoint:CGPointMake(tx + 40, ty - 25)];
-              [textPath addLineToPoint:CGPointMake(tx + 40, ty + 15)];
-              [textPath addCurveToPoint:CGPointMake(tx + 55, ty - 15) controlPoint1:CGPointMake(tx + 40, ty - 5) controlPoint2:CGPointMake(tx + 50, ty - 15)];
-              [textPath addLineToPoint:CGPointMake(tx + 55, ty + 15)];
-              [textPath addCurveToPoint:CGPointMake(tx + 70, ty + 15) controlPoint1:CGPointMake(tx + 60, ty + 25) controlPoint2:CGPointMake(tx + 70, ty + 25)];
-              [textPath addLineToPoint:CGPointMake(tx + 70, ty - 5)];
-              [textPath addLineToPoint:CGPointMake(tx + 70, ty + 15)];
-              [textPath addCurveToPoint:CGPointMake(tx + 85, ty + 30) controlPoint1:CGPointMake(tx + 75, ty + 25) controlPoint2:CGPointMake(tx + 85, ty + 25)];
-
-              self.textLayer = [CAShapeLayer layer];
-              self.textLayer.path = textPath.CGPath;
-              self.textLayer.strokeColor = [UIColor colorWithRed:1.0 green:0.88 blue:0.4 alpha:1.0].CGColor;
-              self.textLayer.fillColor = [UIColor clearColor].CGColor;
-              self.textLayer.lineWidth = 4.5;
-              self.textLayer.lineCap = kCALineCapRound;
-              self.textLayer.strokeEnd = 0.0;
-              self.textLayer.shadowColor = [UIColor colorWithRed:1.0 green:0.8 blue:0.2 alpha:1.0].CGColor;
-              self.textLayer.shadowRadius = 14;
-              self.textLayer.shadowOpacity = 0.95;
-              self.textLayer.shadowOffset = CGSizeZero;
-              [self.view.layer addSublayer:self.textLayer];
-
-              // 4. Tạo Đường Vẽ 3: Lồng Đèn Đỏ Trung Thu & Ngôi Sao
-              UIBezierPath *lanternPath = [UIBezierPath bezierPath];
-              CGFloat lx = w * 0.72, ly = h * 0.48;
-              [lanternPath moveToPoint:CGPointMake(lx, ly - 70)];
-              [lanternPath addLineToPoint:CGPointMake(lx, ly - 50)];
-              [lanternPath addCurveToPoint:CGPointMake(lx + 45, ly) controlPoint1:CGPointMake(lx + 40, ly - 50) controlPoint2:CGPointMake(lx + 45, ly - 25)];
-              [lanternPath addCurveToPoint:CGPointMake(lx, ly + 50) controlPoint1:CGPointMake(lx + 45, ly + 25) controlPoint2:CGPointMake(lx + 40, ly + 50)];
-              [lanternPath addCurveToPoint:CGPointMake(lx - 45, ly) controlPoint1:CGPointMake(lx - 40, ly + 50) controlPoint2:CGPointMake(lx - 45, ly + 25)];
-              [lanternPath addCurveToPoint:CGPointMake(lx, ly - 50) controlPoint1:CGPointMake(lx - 45, ly - 25) controlPoint2:CGPointMake(lx - 40, ly - 50)];
-              [lanternPath moveToPoint:CGPointMake(lx, ly + 50)];
-              [lanternPath addLineToPoint:CGPointMake(lx, ly + 80)];
-
-              CGFloat sx = w * 0.86, sy = h * 0.42;
-              for (int i = 0; i < 5; i++) {
-                  CGFloat angle = i * 4 * M_PI / 5 - M_PI / 2;
-                  CGFloat px = sx + 35 * cos(angle);
-                  CGFloat py = sy + 35 * sin(angle);
-                  if (i == 0) [lanternPath moveToPoint:CGPointMake(px, py)];
-                  else [lanternPath addLineToPoint:CGPointMake(px, py)];
-              }
-              [lanternPath closePath];
-
-              self.lanternLayer = [CAShapeLayer layer];
-              self.lanternLayer.path = lanternPath.CGPath;
-              self.lanternLayer.strokeColor = [UIColor colorWithRed:1.0 green:0.35 blue:0.3 alpha:1.0].CGColor;
-              self.lanternLayer.fillColor = [UIColor colorWithRed:1.0 green:0.25 blue:0.2 alpha:0.18].CGColor;
-              self.lanternLayer.lineWidth = 4.0;
-              self.lanternLayer.lineCap = kCALineCapRound;
-              self.lanternLayer.strokeEnd = 0.0;
-              self.lanternLayer.shadowColor = [UIColor colorWithRed:1.0 green:0.3 blue:0.3 alpha:1.0].CGColor;
-              self.lanternLayer.shadowRadius = 16;
-              self.lanternLayer.shadowOpacity = 0.9;
-              self.lanternLayer.shadowOffset = CGSizeZero;
-              [self.view.layer addSublayer:self.lanternLayer];
-
-              // 5. Cây Bút Thần
-              self.magicPenContainer = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 44, 44)];
-              UILabel *penLabel = [[UILabel alloc] initWithFrame:self.magicPenContainer.bounds];
-              penLabel.text = @"🖋️";
-              penLabel.font = [UIFont systemFontOfSize:36];
-              penLabel.textAlignment = NSTextAlignmentCenter;
-              penLabel.transform = CGAffineTransformMakeRotation(-M_PI_4);
-              [self.magicPenContainer addSubview:penLabel];
-
-              self.magicPenContainer.layer.shadowColor = [UIColor colorWithRed:1.0 green:0.9 blue:0.4 alpha:1.0].CGColor;
-              self.magicPenContainer.layer.shadowRadius = 14;
-              self.magicPenContainer.layer.shadowOpacity = 1.0;
-              self.magicPenContainer.layer.shadowOffset = CGSizeZero;
-              [self.view addSubview:self.magicPenContainer];
-
-              // Tên "THÙY" Tỏa Sáng Nghệ Thuật
-              self.thuyTitleLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, h * 0.35, w, 90)];
-              self.thuyTitleLabel.text = @"THÙY";
-              self.thuyTitleLabel.textColor = [UIColor colorWithRed:1.0 green:0.88 blue:0.3 alpha:1.0];
-              self.thuyTitleLabel.font = [UIFont fontWithName:@"HelveticaNeue-CondensedBlack" size:85] ?: [UIFont boldSystemFontOfSize:80];
-              self.thuyTitleLabel.textAlignment = NSTextAlignmentCenter;
-              self.thuyTitleLabel.layer.shadowColor = [UIColor colorWithRed:1.0 green:0.3 blue:0.7 alpha:1.0].CGColor;
-              self.thuyTitleLabel.layer.shadowRadius = 25;
-              self.thuyTitleLabel.layer.shadowOpacity = 1.0;
-              self.thuyTitleLabel.layer.shadowOffset = CGSizeZero;
-              self.thuyTitleLabel.alpha = 0.0;
-              [self.view addSubview:self.thuyTitleLabel];
-
-              self.subTitleLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, h * 0.62, w, 40)];
-              self.subTitleLabel.text = @"🏮 CHÚC MỪNG TẾT TRUNG THU AN LÀNH 🥮";
-              self.subTitleLabel.textColor = [UIColor colorWithRed:1.0 green:0.75 blue:0.5 alpha:1.0];
-              self.subTitleLabel.font = [UIFont fontWithName:@"HelveticaNeue-Bold" size:22];
-              self.subTitleLabel.textAlignment = NSTextAlignmentCenter;
-              self.subTitleLabel.alpha = 0.0;
-              [self.view addSubview:self.subTitleLabel];
-
-              // Bắt đầu chuỗi hiệu ứng
-              [self startMagicPenSequenceHeartPath:heartPath textPath:textPath lanternPath:lanternPath width:w height:h];
-          }
-
-          - (void)startMagicPenSequenceHeartPath:(UIBezierPath *)heartPath textPath:(UIBezierPath *)textPath lanternPath:(UIBezierPath *)lanternPath width:(CGFloat)w height:(CGFloat)h {
+              self.view.backgroundColor = [UIColor colorWithRed:0.1 green:0.8 blue:1.0 alpha:1.0]; // Bầu trời xanh
               
-              // Phase 1: Vẽ Trái Tim Hồng (3s)
-              CABasicAnimation *drawHeart = [CABasicAnimation animationWithKeyPath:@"strokeEnd"];
-              drawHeart.duration = 3.0;
-              drawHeart.fromValue = @(0.0);
-              drawHeart.toValue = @(1.0);
-              [self.heartLayer addAnimation:drawHeart forKey:@"drawHeart"];
-              self.heartLayer.strokeEnd = 1.0;
-
-              CAKeyframeAnimation *penHeart = [CAKeyframeAnimation animationWithKeyPath:@"position"];
-              penHeart.path = heartPath.CGPath;
-              penHeart.duration = 3.0;
-              penHeart.calculationMode = @"paced";
-              [self.magicPenContainer.layer addAnimation:penHeart forKey:@"penMotion"];
-
-              // Phase 2: Viết "love Thùy" (3s)
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                  CABasicAnimation *drawText = [CABasicAnimation animationWithKeyPath:@"strokeEnd"];
-                  drawText.duration = 3.0;
-                  drawText.fromValue = @(0.0);
-                  drawText.toValue = @(1.0);
-                  [self.textLayer addAnimation:drawText forKey:@"drawText"];
-                  self.textLayer.strokeEnd = 1.0;
-
-                  CAKeyframeAnimation *penText = [CAKeyframeAnimation animationWithKeyPath:@"position"];
-                  penText.path = textPath.CGPath;
-                  penText.duration = 3.0;
-                  penText.calculationMode = @"paced";
-                  [self.magicPenContainer.layer addAnimation:penText forKey:@"penMotion"];
-              });
-
-              // Phase 3: Vẽ Lồng Đèn Trung Thu (3s)
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(6.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                  CABasicAnimation *drawLantern = [CABasicAnimation animationWithKeyPath:@"strokeEnd"];
-                  drawLantern.duration = 3.0;
-                  drawLantern.fromValue = @(0.0);
-                  drawLantern.toValue = @(1.0);
-                  [self.lanternLayer addAnimation:drawLantern forKey:@"drawLantern"];
-                  self.lanternLayer.strokeEnd = 1.0;
-
-                  CAKeyframeAnimation *penLantern = [CAKeyframeAnimation animationWithKeyPath:@"position"];
-                  penLantern.path = lanternPath.CGPath;
-                  penLantern.duration = 3.0;
-                  penLantern.calculationMode = @"paced";
-                  [self.magicPenContainer.layer addAnimation:penLantern forKey:@"penMotion"];
-              });
-
-              // Phase 4: THẢ ĐÈN LỒNG HOA ĐĂNG & HIỆN TRÁI TIM ĐẬP NHẸ
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(9.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                  [UIView animateWithDuration:0.8 animations:^{
-                      self.magicPenContainer.alpha = 0.0;
-                  }];
-
-                  // Bắt đầu hiệu ứng Nhịp Đập Trái Tim (Heartbeat)
-                  CAKeyframeAnimation *heartPulse = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale"];
-                  heartPulse.values = @[@1.0, @1.06, @1.0, @1.1, @1.0];
-                  heartPulse.keyTimes = @[@0.0, @0.25, @0.5, @0.75, @1.0];
-                  heartPulse.duration = 1.6;
-                  heartPulse.repeatCount = HUGE_VALF;
-                  [self.heartLayer addAnimation:heartPulse forKey:@"pulse"];
-
-                  // Bắt đầu thả Đèn Lồng & Trái Tim Hồng Bay Bổng
-                  [self launchFloatingLanternsAndHeartsWidth:w height:h];
-
-                  // Hiện Tên THÙY & Lời Chúc Warm & Cozy
-                  [UIView animateWithDuration:1.8 delay:0.3 options:UIViewAnimationOptionCurveEaseOut animations:^{
-                      self.thuyTitleLabel.alpha = 1.0;
-                      self.thuyTitleLabel.transform = CGAffineTransformMakeScale(1.1, 1.1);
-                      self.subTitleLabel.alpha = 1.0;
-                  } completion:nil];
-              });
+              self.obstacles = [NSMutableArray array];
+              
+              // Tạo nhân vật (Cube)
+              self.player = [[UIView alloc] initWithFrame:CGRectMake(80, self.view.bounds.size.height / 2, 40, 40)];
+              self.player.backgroundColor = [UIColor colorWithRed:1.0 green:0.8 blue:0.0 alpha:1.0]; // Khối vàng
+              self.player.layer.cornerRadius = 8;
+              self.player.layer.borderWidth = 2;
+              self.player.layer.borderColor = [UIColor whiteColor].CGColor;
+              [self.view addSubview:self.player];
+              
+              // Tạo điểm số
+              self.scoreLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 50, self.view.bounds.size.width, 50)];
+              self.scoreLabel.text = @"0";
+              self.scoreLabel.textColor = [UIColor whiteColor];
+              self.scoreLabel.font = [UIFont boldSystemFontOfSize:50];
+              self.scoreLabel.textAlignment = NSTextAlignmentCenter;
+              [self.view addSubview:self.scoreLabel];
+              
+              // Chữ Hướng dẫn bắt đầu
+              self.startLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, self.view.bounds.size.height / 2 + 50, self.view.bounds.size.width, 40)];
+              self.startLabel.text = @"Chạm vào màn hình để BAY";
+              self.startLabel.textColor = [UIColor whiteColor];
+              self.startLabel.font = [UIFont boldSystemFontOfSize:22];
+              self.startLabel.textAlignment = NSTextAlignmentCenter;
+              [self.view addSubview:self.startLabel];
+              
+              self.isGameRunning = NO;
           }
 
-          - (void)createMoonAndStarsWidth:(CGFloat)w height:(CGFloat)h {
-              // Mặt trăng rằm vàng rực rỡ
-              UIView *moon = [[UIView alloc] initWithFrame:CGRectMake(w - 135, 22, 90, 90)];
-              moon.backgroundColor = [UIColor colorWithRed:1.0 green:0.96 blue:0.82 alpha:1.0];
-              moon.layer.cornerRadius = 45;
-              moon.layer.shadowColor = [UIColor colorWithRed:1.0 green:0.85 blue:0.4 alpha:1.0].CGColor;
-              moon.layer.shadowRadius = 35;
-              moon.layer.shadowOpacity = 1.0;
-              moon.layer.shadowOffset = CGSizeZero;
-              [self.view addSubview:moon];
+          - (void)startGame {
+              self.isGameRunning = YES;
+              self.startLabel.hidden = YES;
+              self.score = 0;
+              self.scoreLabel.text = @"0";
+              self.playerVelocity = 0;
+              self.player.center = CGPointMake(100, self.view.bounds.size.height / 2);
+              
+              for (UIView *obs in self.obstacles) {
+                  [obs removeFromSuperview];
+              }
+              [self.obstacles removeAllObjects];
+              
+              // Vòng lặp game 60fps
+              self.gameTimer = [CADisplayLink displayLinkWithTarget:self selector:@selector(gameLoop)];
+              [self.gameTimer addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
           }
 
-          // HIỆU ỨNG THẢ ĐÈN LỒNG & HẠT TRÁI TIM HỒNG BAY LÊN TRỜI ĐÊM TRUNG THU
-          - (void)launchFloatingLanternsAndHeartsWidth:(CGFloat)w height:(CGFloat)h {
-              self.floatingLanternsEmitter = [CAEmitterLayer layer];
-              self.floatingLanternsEmitter.emitterPosition = CGPointMake(w / 2, h + 30);
-              self.floatingLanternsEmitter.emitterSize = CGSizeMake(w * 0.95, 20);
-              self.floatingLanternsEmitter.emitterShape = kCAEmitterLayerLine;
+          - (void)gameOver {
+              self.isGameRunning = NO;
+              [self.gameTimer invalidate];
+              self.gameTimer = nil;
+              
+              self.startLabel.text = @"GAME OVER! Chạm để chơi lại";
+              self.startLabel.hidden = NO;
+              
+              // Hiệu ứng rung màn hình nhẹ
+              CABasicAnimation *shake = [CABasicAnimation animationWithKeyPath:@"position"];
+              shake.duration = 0.05;
+              shake.repeatCount = 3;
+              shake.autoreverses = YES;
+              shake.fromValue = [NSValue valueWithCGPoint:CGPointMake(self.player.center.x - 10, self.player.center.y)];
+              shake.toValue = [NSValue valueWithCGPoint:CGPointMake(self.player.center.x + 10, self.player.center.y)];
+              [self.player.layer addAnimation:shake forKey:@"position"];
+          }
 
-              // 1. Lồng Đèn Hoa Đăng Vàng Ấm Trôi Bồng Bềnh
-              CAEmitterCell *lantern = [CAEmitterCell emitterCell];
-              lantern.birthRate = 2.5;
-              lantern.lifetime = 12.0;
-              lantern.velocity = 35;
-              lantern.velocityRange = 15;
-              lantern.yAcceleration = -10; // Bay từ từ lên bầu trời
-              lantern.emissionLongitude = -M_PI_2;
-              lantern.emissionRange = M_PI / 6;
-              lantern.scale = 0.16;
-              lantern.scaleRange = 0.06;
-              lantern.alphaSpeed = -0.06;
+          - (void)gameLoop {
+              // 1. Áp dụng trọng lực cho người chơi
+              self.playerVelocity += 0.4; // Lực hút trái đất
+              self.player.center = CGPointMake(self.player.center.x, self.player.center.y + self.playerVelocity);
+              
+              // Cập nhật góc xoay khi rớt xuống
+              CGFloat rotation = MIN(MAX(self.playerVelocity * 0.1, -M_PI_4), M_PI_2);
+              self.player.transform = CGAffineTransformMakeRotation(rotation);
+              
+              // 2. Chạm đất hoặc trần nhà -> Thua
+              if (self.player.frame.origin.y > self.view.bounds.size.height || self.player.frame.origin.y < 0) {
+                  [self.gameOver];
+                  return;
+              }
+              
+              // 3. Sinh ra ống nước chướng ngại vật
+              if (self.obstacles.count == 0 || [[self.obstacles lastObject] frame].origin.x < self.view.bounds.size.width - 200) {
+                  CGFloat gapSize = 180; // Khoảng trống chui qua
+                  CGFloat randomY = arc4random_uniform(self.view.bounds.size.height - 300) + 100;
+                  
+                  // Ống trên
+                  UIView *topObs = [[UIView alloc] initWithFrame:CGRectMake(self.view.bounds.size.width, 0, 60, randomY - gapSize/2)];
+                  topObs.backgroundColor = [UIColor colorWithRed:0.2 green:0.8 blue:0.2 alpha:1.0];
+                  topObs.layer.cornerRadius = 5;
+                  [self.view addSubview:topObs];
+                  [self.obstacles addObject:topObs];
+                  
+                  // Ống dưới
+                  UIView *bottomObs = [[UIView alloc] initWithFrame:CGRectMake(self.view.bounds.size.width, randomY + gapSize/2, 60, self.view.bounds.size.height)];
+                  bottomObs.backgroundColor = [UIColor colorWithRed:0.2 green:0.8 blue:0.2 alpha:1.0];
+                  bottomObs.layer.cornerRadius = 5;
+                  [self.view addSubview:bottomObs];
+                  [self.obstacles addObject:bottomObs];
+              }
+              
+              // 4. Di chuyển ống nước và kiểm tra va chạm
+              NSMutableArray *toRemove = [NSMutableArray array];
+              for (int i = 0; i < self.obstacles.count; i++) {
+                  UIView *obs = self.obstacles[i];
+                  obs.center = CGPointMake(obs.center.x - 3.5, obs.center.y); // Tốc độ ống
+                  
+                  // Kiểm tra va chạm (Thua)
+                  if (CGRectIntersectsRect(self.player.frame, obs.frame)) {
+                      [self.gameOver];
+                      return;
+                  }
+                  
+                  // Vượt qua ống -> Cộng điểm (chỉ tính 1 lần cho ống trên)
+                  if (i % 2 == 0 && obs.center.x < self.player.center.x && !CGAffineTransformEqualToTransform(obs.transform, CGAffineTransformMakeScale(1, -1))) {
+                      self.score++;
+                      self.scoreLabel.text = [NSString stringWithFormat:@"%ld", (long)self.score];
+                      obs.transform = CGAffineTransformMakeScale(1, -1); // Đánh dấu đã qua
+                  }
+                  
+                  // Dọn dẹp ống đi khuất màn hình
+                  if (obs.frame.origin.x + obs.frame.size.width < 0) {
+                      [toRemove addObject:obs];
+                  }
+              }
+              
+              for (UIView *obs in toRemove) {
+                  [obs removeFromSuperview];
+                  [self.obstacles removeObject:obs];
+              }
+          }
 
-              UIGraphicsBeginImageContextWithOptions(CGSizeMake(26, 26), NO, 0.0);
-              CGContextRef ctx = UIGraphicsGetCurrentContext();
-              CGContextSetFillColorWithColor(ctx, [UIColor colorWithRed:1.0 green:0.75 blue:0.25 alpha:0.95].CGColor);
-              CGContextFillEllipseInRect(ctx, CGRectMake(2, 2, 22, 22));
-              UIImage *lanternImg = UIGraphicsGetImageFromCurrentImageContext();
-              UIGraphicsEndImageContext();
-              lantern.contents = (__bridge id)[lanternImg CGImage];
-
-              // 2. Hạt Trái Tim Hồng Lấp Lánh Nhẹ Nhàng
-              CAEmitterCell *pinkHeart = [CAEmitterCell emitterCell];
-              pinkHeart.birthRate = 3.5;
-              pinkHeart.lifetime = 10.0;
-              pinkHeart.velocity = 30;
-              pinkHeart.velocityRange = 12;
-              pinkHeart.yAcceleration = -8;
-              pinkHeart.emissionLongitude = -M_PI_2;
-              pinkHeart.emissionRange = M_PI / 4;
-              pinkHeart.scale = 0.14;
-              pinkHeart.scaleRange = 0.05;
-              pinkHeart.alphaSpeed = -0.07;
-              pinkHeart.spin = 0.4;
-
-              UIGraphicsBeginImageContextWithOptions(CGSizeMake(24, 24), NO, 0.0);
-              ctx = UIGraphicsGetCurrentContext();
-              UIBezierPath *p = [UIBezierPath bezierPath];
-              [p moveToPoint:CGPointMake(12, 6)];
-              [p addCurveToPoint:CGPointMake(2, 11) controlPoint1:CGPointMake(6, 1) controlPoint2:CGPointMake(2, 6)];
-              [p addCurveToPoint:CGPointMake(12, 21) controlPoint1:CGPointMake(2, 16) controlPoint2:CGPointMake(8, 19)];
-              [p addCurveToPoint:CGPointMake(22, 11) controlPoint1:CGPointMake(16, 19) controlPoint2:CGPointMake(22, 16)];
-              [p addCurveToPoint:CGPointMake(12, 6) controlPoint1:CGPointMake(22, 6) controlPoint2:CGPointMake(18, 1)];
-              [[UIColor colorWithRed:1.0 green:0.4 blue:0.75 alpha:0.95] setFill];
-              [p fill];
-              UIImage *heartImg = UIGraphicsGetImageFromCurrentImageContext();
-              UIGraphicsEndImageContext();
-              pinkHeart.contents = (__bridge id)[heartImg CGImage];
-
-              self.floatingLanternsEmitter.emitterCells = @[lantern, pinkHeart];
-              [self.view.layer addSublayer:self.floatingLanternsEmitter];
+          // Nhận sự kiện chạm tay vào màn hình
+          - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+              if (!self.isGameRunning) {
+                  [self startGame];
+              }
+              // Lực đẩy lên (Nhảy)
+              self.playerVelocity = -8.5; 
           }
 
           @end
@@ -386,7 +215,7 @@ jobs:
           @implementation AppDelegate
           - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
               self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
-              self.window.rootViewController = [[MasterpieceViewController alloc] init];
+              self.window.rootViewController = [[GameViewController alloc] init];
               [self.window makeKeyAndVisible];
               return YES;
           }
@@ -399,16 +228,16 @@ jobs:
           }
           ENDOFCODE
 
-          # 3. Biên dịch bằng Clang
+          # 3. Biên dịch game
           xcrun -sdk iphoneos clang -arch arm64 -fobjc-arc -w \
             -framework UIKit -framework Foundation -framework QuartzCore -framework CoreGraphics \
-            main.m -o Payload/SunsetRacer.app/SunsetRacer
+            main.m -o Payload/FlappyCube.app/FlappyCube
 
           # 4. Đóng gói IPA
-          zip -r SunsetRacer.ipa Payload
+          zip -r FlappyCube_Game.ipa Payload
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LoveThuy-Masterpiece-IPA
-          path: SunsetRacer.ipa
+          name: FlappyCube-Game-IPA
+          path: FlappyCube_Game.ipa
